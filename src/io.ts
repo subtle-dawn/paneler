@@ -1,4 +1,4 @@
-import { faceSizeLabel, sizeLabel, shapeLabel } from "./i18n";
+import { faceSizeLabel, sizeLabel, shapeLabel, t } from "./i18n";
 import { createId, createPanelRow } from "./storage";
 import type { EmotionSize, FaceSize, PanelRow, Project, Shape, Size } from "./types";
 
@@ -19,26 +19,26 @@ const manuscriptInnerMarginMm = 20;
 const headerMap: Record<string, keyof PanelRow | "content"> = {
   page: "pageNumber",
   "page number": "pageNumber",
-  ページ: "pageNumber",
+  [t.page]: "pageNumber",
   pagenumber: "pageNumber",
   emotion: "emotionSize",
   emotionsize: "emotionSize",
-  感情: "emotionSize",
+  [t.emotion]: "emotionSize",
   size: "panelSize",
   panelsize: "panelSize",
-  大きさ: "panelSize",
-  役割: "role",
+  [t.size]: "panelSize",
+  [t.role]: "role",
   role: "role",
   shape: "shape",
-  形: "shape",
+  [t.shape]: "shape",
   camera: "camera",
-  カメラ: "camera",
+  [t.camera]: "camera",
   facesize: "faceSize",
   "face size": "faceSize",
-  顔サイズ: "faceSize",
+  [t.faceSize]: "faceSize",
   顔の大きさ: "faceSize",
   content: "content",
-  内容: "content",
+  [t.content]: "content",
   本文: "content",
 };
 
@@ -50,7 +50,7 @@ export async function downloadStoryboardXlsx(rows: PanelRow[], title: string, pr
   const table = storyboardRowsForExport(rows);
   const data = await buildStoryboardTemplateXlsx(table, project);
   downloadBlob(
-    `${safeFileName(title)}_文字ネーム.xlsx`,
+    `${safeFileName(title)}_${t.textStoryboardFileStem}.xlsx`,
     data,
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   );
@@ -59,17 +59,17 @@ export async function downloadStoryboardXlsx(rows: PanelRow[], title: string, pr
 async function downloadStoryboardXlsxLegacy(rows: PanelRow[], title: string) {
   const xlsx = await import("xlsx");
   const sorted = rows.slice().sort((a, b) => a.pageNumber - b.pageNumber || a.order - b.order);
-  const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "顔サイズ", "内容"]];
+  const table: string[][] = [[t.emotion, t.size, t.role, t.shape, t.camera, t.faceSize, t.content]];
   let currentPage = 0;
 
   sorted.forEach((row) => {
     if (row.pageNumber !== currentPage) {
       currentPage = row.pageNumber;
-      table.push([`${currentPage}ページ目`, pageSideLabel(currentPage), "", "", "", "", ""]);
+      table.push([`${currentPage}${t.pageOrdinalSuffix}`, pageSideLabel(currentPage), "", "", "", "", ""]);
     }
 
     table.push([
-      row.emotionSize ? sizeLabel[row.emotionSize] : "なし",
+      row.emotionSize ? sizeLabel[row.emotionSize] : t.none,
       sizeLabel[row.panelSize],
       row.role,
       shapeLabel[row.shape],
@@ -82,23 +82,23 @@ async function downloadStoryboardXlsxLegacy(rows: PanelRow[], title: string) {
   const worksheet = xlsx.utils.aoa_to_sheet(table);
   worksheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 64 }];
   const workbook = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(workbook, worksheet, "文字ネーム");
-  xlsx.writeFile(workbook, `${safeFileName(title)}_文字ネーム.xlsx`);
+  xlsx.utils.book_append_sheet(workbook, worksheet, t.textStoryboardFileStem);
+  xlsx.writeFile(workbook, `${safeFileName(title)}_${t.textStoryboardFileStem}.xlsx`);
 }
 
 function storyboardRowsForExport(rows: PanelRow[]) {
   const sorted = rows.slice().sort((a, b) => a.pageNumber - b.pageNumber || a.order - b.order);
-  const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "顔サイズ", "内容"]];
+  const table: string[][] = [[t.emotion, t.size, t.role, t.shape, t.camera, t.faceSize, t.content]];
   let currentPage = 0;
 
   sorted.forEach((row) => {
     if (row.pageNumber !== currentPage) {
       currentPage = row.pageNumber;
-      table.push([`${currentPage}ページ目`, pageSideLabel(currentPage), "", "", "", "", ""]);
+      table.push([`${currentPage}${t.pageOrdinalSuffix}`, pageSideLabel(currentPage), "", "", "", "", ""]);
     }
 
     table.push([
-      row.emotionSize ? sizeLabel[row.emotionSize] : "なし",
+      row.emotionSize ? sizeLabel[row.emotionSize] : t.none,
       sizeLabel[row.panelSize],
       row.role,
       shapeLabel[row.shape],
@@ -113,7 +113,7 @@ function storyboardRowsForExport(rows: PanelRow[]) {
 
 async function loadStoryboardTemplateWorkbook(xlsx: typeof import("xlsx")) {
   const response = await fetch(STORYBOARD_TEMPLATE_URL);
-  if (!response.ok) throw new Error("文字ネームテンプレートを読み込めませんでした");
+  if (!response.ok) throw new Error(t.templateLoadFailed);
 
   return xlsx.read(await response.arrayBuffer(), { cellStyles: true });
 }
@@ -121,7 +121,7 @@ async function loadStoryboardTemplateWorkbook(xlsx: typeof import("xlsx")) {
 async function buildStoryboardTemplateXlsx(table: string[][], project?: Project) {
   const fflate = await import("fflate");
   const response = await fetch(STORYBOARD_TEMPLATE_URL);
-  if (!response.ok) throw new Error("文字ネームテンプレートを読み込めませんでした");
+  if (!response.ok) throw new Error(t.templateLoadFailed);
 
   const archive = fflate.unzipSync(new Uint8Array(await response.arrayBuffer()));
   const sheetPath = firstWorksheetPath(archive);
@@ -268,7 +268,7 @@ function firstWorksheetPath(archive: Record<string, Uint8Array>) {
     .filter((key) => /^xl\/worksheets\/sheet\d+\.xml$/.test(key))
     .sort()[0];
 
-  if (!path) throw new Error("文字ネームテンプレートにワークシートが見つかりませんでした");
+  if (!path) throw new Error(t.templateWorksheetMissing);
   return path;
 }
 
@@ -313,7 +313,7 @@ function stringDisplayWidth(value: string) {
 function storyboardXmlRow(cells: string[], rowIndex: number) {
   const rowNumber = rowIndex + 1;
   const isHeader = rowIndex === 0;
-  const isPageRow = rowIndex > 0 && (cells[0] ?? "").endsWith("ページ目");
+  const isPageRow = rowIndex > 0 && (cells[0] ?? "").endsWith(t.pageOrdinalSuffix);
   const rowAttributes = isPageRow ? ` r="${rowNumber}" spans="1:7" s="5" customFormat="1"` : ` r="${rowNumber}" spans="1:7"`;
 
   return `<row${rowAttributes}>${Array.from({ length: 7 }, (_, colIndex) =>
@@ -360,7 +360,7 @@ function writeStoryboardRowsToTemplate(
 
   table.forEach((cells, rowIndex) => {
     const isHeader = rowIndex === 0;
-    const isPageRow = rowIndex > 0 && cells[0].endsWith("ページ目");
+    const isPageRow = rowIndex > 0 && cells[0].endsWith(t.pageOrdinalSuffix);
 
     cells.forEach((value, colIndex) => {
       const address = xlsx.utils.encode_cell({ r: rowIndex, c: colIndex });
@@ -392,10 +392,10 @@ function rangeEndRow(worksheet: import("xlsx").WorkSheet) {
 
 export function downloadCsv(rows: PanelRow[], title: string) {
   const csvRows = [
-    ["ページ", "感情", "大きさ", "役割", "形", "カメラ", "顔サイズ", "内容"],
+    [t.page, t.emotion, t.size, t.role, t.shape, t.camera, t.faceSize, t.content],
     ...rows.map((row) => [
       String(row.pageNumber),
-      row.emotionSize ? sizeLabel[row.emotionSize] : "なし",
+      row.emotionSize ? sizeLabel[row.emotionSize] : t.none,
       sizeLabel[row.panelSize],
       row.role,
       shapeLabel[row.shape],
@@ -786,7 +786,7 @@ function rowsFromSectionedTable(headers: string[], table: string[][]): PanelRow[
 
   table.forEach((cells) => {
     const first = String(cells[0] ?? "").trim();
-    const pageMatch = first.match(/^(\d+)\s*ページ目?$/);
+    const pageMatch = first.match(new RegExp(`^(\\d+)\\s*${t.page}(?:目)?$`));
     if (pageMatch) {
       currentPage = Number(pageMatch[1]);
       return;
@@ -842,7 +842,7 @@ function objectToPanelRow(raw: RawSheetRow, order: number, fallbackPageNumber = 
       content: String(normalized.content ?? ""),
       order,
       warnings: {
-        pageNumber: Number.isFinite(pageNumber) && pageNumber > 0 ? undefined : "ページ番号を確認してください",
+        pageNumber: Number.isFinite(pageNumber) && pageNumber > 0 ? undefined : t.invalidPageNumber,
         emotionSize: emotionSize.warning,
         panelSize: panelSize.warning,
         shape: shape.warning,
@@ -864,7 +864,7 @@ function parseSize(value: string): { value: Size; warning?: string } {
   if (["大", "large", "l"].includes(normalized)) return { value: "large" };
   if (["極大", "特大", "extra large", "extralarge", "xl"].includes(normalized)) return { value: "extraLarge" };
   if (["1ページ", "１ページ", "1page", "full page", "fullpage"].includes(normalized)) return { value: "fullPage" };
-  return { value: "small", warning: "極小・小・中・大・特大・1ページから選んでください" };
+  return { value: "small", warning: t.invalidSize };
 }
 
 function parseEmotion(value: string): { value: EmotionSize; warning?: string } {
@@ -873,7 +873,7 @@ function parseEmotion(value: string): { value: EmotionSize; warning?: string } {
   if (["小", "small", "s"].includes(normalized)) return { value: "small" };
   if (["中", "medium", "m"].includes(normalized)) return { value: "medium" };
   if (["大", "large", "l"].includes(normalized)) return { value: "large" };
-  return { value: null, warning: "小・中・大から選んでください" };
+  return { value: null, warning: t.invalidEmotion };
 }
 
 function parseShape(value: string): { value: Shape; warning?: string } {
@@ -881,7 +881,7 @@ function parseShape(value: string): { value: Shape; warning?: string } {
   if (["縦", "vertical", "v"].includes(normalized)) return { value: "vertical" };
   if (["正", "正方形", "square", "s"].includes(normalized)) return { value: "square" };
   if (["横", "horizontal", "h"].includes(normalized)) return { value: "horizontal" };
-  return { value: "vertical", warning: "縦・正・横から選んでください" };
+  return { value: "vertical", warning: t.invalidShape };
 }
 
 function parseFaceSize(value: string): { value: FaceSize; warning?: string } {
@@ -892,7 +892,7 @@ function parseFaceSize(value: string): { value: FaceSize; warning?: string } {
   if (["中", "medium", "m"].includes(normalized)) return { value: "medium" };
   if (["大", "large", "l"].includes(normalized)) return { value: "large" };
   if (["特大", "extra large", "extralarge", "xl"].includes(normalized)) return { value: "extraLarge" };
-  return { value: "medium", warning: "ー・極小・小・中・大・特大から選んでください" };
+  return { value: "medium", warning: t.invalidFaceSize };
 }
 
 function parseCsv(text: string, delimiter: string) {
@@ -953,7 +953,7 @@ function safeFileName(value: string) {
 }
 
 function pageSideLabel(pageNumber: number) {
-  return pageNumber % 2 === 1 ? "左ページ" : "右ページ";
+  return pageNumber % 2 === 1 ? t.leftPage : t.rightPage;
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string) {

@@ -795,7 +795,7 @@ h2 {
   pointer-events: none;
   position: fixed;
   transform: translate(-50%, -100%);
-  white-space: pre-line;
+  white-space: pre;
   z-index: 1000;
 }
 

@@ -1,3 +1,4 @@
+import { cameraOptionLabels, roleOptionLabels, t } from "./i18n";
 import type { PanelRow, Project } from "./types";
 
 const STORAGE_KEY = "paneler.project.v1";
@@ -30,7 +31,7 @@ export function createPanelRow(pageNumber = 1, order = 0): PanelRow {
     panelSize: "medium",
     role: "",
     shape: "square",
-    camera: "正",
+    camera: cameraOptionLabels[0],
     faceSize: "medium",
     content: "",
     order,
@@ -40,7 +41,7 @@ export function createPanelRow(pageNumber = 1, order = 0): PanelRow {
 export function createDefaultProject(): Project {
   return {
     id: createId("project"),
-    title: "無題の作品",
+    title: t.defaultProjectTitle,
     readingDirection: "rtl",
     pages: [
       {
@@ -51,22 +52,22 @@ export function createDefaultProject(): Project {
             id: createId("panel"),
             emotionSize: "small",
             panelSize: "small",
-            role: "場・時",
+            role: `${roleOptionLabels[1]}・${roleOptionLabels[2]}`,
             shape: "vertical",
-            camera: "正",
+            camera: cameraOptionLabels[0],
             faceSize: "medium",
-            content: "家の外観",
+            content: t.defaultPanelContentExterior,
             order: 0,
           },
           {
             id: createId("panel"),
             emotionSize: "small",
             panelSize: "large",
-            role: "場",
+            role: roleOptionLabels[1],
             shape: "square",
-            camera: "俯",
+            camera: cameraOptionLabels[1],
             faceSize: "medium",
-            content: "家の内観。妹がキッチンで弁当を作っている",
+            content: t.defaultPanelContentInterior,
             order: 1,
           },
           {
@@ -75,9 +76,9 @@ export function createDefaultProject(): Project {
             panelSize: "medium",
             role: "",
             shape: "square",
-            camera: "俯",
+            camera: cameraOptionLabels[1],
             faceSize: "medium",
-            content: "妹モノローグ……",
+            content: t.defaultPanelContentMonologue,
             order: 2,
           },
         ],

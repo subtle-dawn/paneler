@@ -14,7 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { emotionLabel, faceSizeLabel, shapeLabel, sizeLabel, t } from "./i18n";
+import { cameraOptionLabels, emotionLabel, faceSizeLabel, roleOptionLabels, shapeLabel, sizeLabel, t } from "./i18n";
 import {
   downloadStoryboardXlsx,
   exportPagePng,
@@ -31,8 +31,8 @@ const sizeOptions: Size[] = ["extraSmall", "small", "medium", "large", "extraLar
 const shapeOptions: Shape[] = ["square", "vertical", "horizontal"];
 const emotionOptions = ["small", "medium", "large"] as const;
 const faceSizeOptions: FaceSize[] = ["none", "extraSmall", "small", "medium", "large", "extraLarge"];
-const roleOptions = ["ー", "場", "時", "魅", "予"] as const;
-const cameraOptions = ["正", "俯", "煽", "横", "上", "下"] as const;
+const roleOptions = roleOptionLabels;
+const cameraOptions = cameraOptionLabels;
 const minRowHeightWeight = 0.25;
 const minColumnWidthWeight = 0.25;
 const horizontalRowHeightWeight = 0.6;
@@ -85,7 +85,7 @@ export function App() {
     }
     return spreads;
   }, [layouts]);
-  const pageCountWarning = layouts.length % 4 === 0 ? undefined : "ページ数が４の倍数でないです";
+  const pageCountWarning = layouts.length % 4 === 0 ? undefined : t.pageCountWarning;
   const columnWarnings = useMemo(() => getColumnWarnings(activeRows), [activeRows]);
 
   useEffect(() => {
@@ -339,9 +339,9 @@ export function App() {
         if (!pageEl) return;
 
         if (downloadFormat === "png") {
-          await exportPagePng(pageEl, `${project.title}_コマ割り_${formatPageNumber(activePage)}.png`);
+          await exportPagePng(pageEl, `${project.title}_${t.panelingFileStem}_${formatPageNumber(activePage)}.png`);
         } else {
-          await exportPagesPdf([pageEl], `${project.title}_コマ割り_${formatPageNumber(activePage)}.pdf`);
+          await exportPagesPdf([pageEl], `${project.title}_${t.panelingFileStem}_${formatPageNumber(activePage)}.pdf`);
         }
         setIsDownloadOpen(false);
         return;
@@ -352,22 +352,22 @@ export function App() {
           .map((layout) => {
             const pageEl = pageRefs.current[layout.pageNumber];
             return pageEl
-              ? { pageEl, fileName: `${project.title}_コマ割り_${formatPageNumber(layout.pageNumber)}.png` }
+              ? { pageEl, fileName: `${project.title}_${t.panelingFileStem}_${formatPageNumber(layout.pageNumber)}.png` }
               : undefined;
           })
           .filter((page): page is { pageEl: HTMLDivElement; fileName: string } => Boolean(page));
-        await exportPagesPngZip(pages, `${project.title}_コマ割り.zip`);
+        await exportPagesPngZip(pages, `${project.title}_${t.panelingFileStem}.zip`);
       } else {
         const pageEls = layouts
           .map((layout) => pageRefs.current[layout.pageNumber])
           .filter((pageEl): pageEl is HTMLDivElement => Boolean(pageEl));
-        await exportPagesPdf(pageEls, `${project.title}_コマ割り.pdf`);
+        await exportPagesPdf(pageEls, `${project.title}_${t.panelingFileStem}.pdf`);
       }
 
       setIsDownloadOpen(false);
     } catch (error) {
       console.error(error);
-      window.alert("ダウンロードに失敗しました。もう一度試してください。");
+      window.alert(t.downloadFailed);
     } finally {
       setIsDownloading(false);
     }
@@ -383,10 +383,10 @@ export function App() {
           <button
             type="button"
             className="header-button"
-            aria-label="Panelerの説明"
+            aria-label={t.appHelpAria}
             onClick={() => setIsAppHelpOpen(true)}
           >
-            Panelerとは？
+            {t.appHelpTitle}
           </button>
           <button type="button" className="header-button" onClick={() => setIsSettingsOpen(true)}>
             {t.settings}
@@ -423,19 +423,19 @@ export function App() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-heading">
-              <h2 id="app-help-title">Panelerとは？</h2>
+              <h2 id="app-help-title">{t.appHelpTitle}</h2>
               <button type="button" className="icon-button" onClick={() => setIsAppHelpOpen(false)} title={t.close}>
                 <X size={18} />
               </button>
             </div>
             <p className="page-help-text">
-              文字ネームを書くことで、自動でコマ割りまでのネームを生成できるサイトです。
+              {t.appHelpLine1}
               <br />
-              ブラウザ完結のため、入力内容がサーバーに送信されることはありません。
+              {t.appHelpLine2}
               <br />
-              入力内容はExcelとしてエクスポートでき、Excelで追記した場合インポートもできます。
+              {t.appHelpLine3}
               <br />
-              生成したネームは、PNG形式またはPDF形式でダウンロードできます。
+              {t.appHelpLine4}
             </p>
           </section>
         </div>
@@ -563,15 +563,15 @@ export function App() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-heading">
-              <h2 id="page-help-title">ページ一覧</h2>
+              <h2 id="page-help-title">{t.pages}</h2>
               <button type="button" className="icon-button" onClick={() => setIsPageHelpOpen(false)} title={t.close}>
                 <X size={18} />
               </button>
             </div>
             <p className="page-help-text">
-              各ページを選択して切り替えられます。
+              {t.pageHelpLine1}
               <br />
-              ゴミ箱ボタンを押すとページを削除できます。
+              {t.pageHelpLine2}
             </p>
           </section>
         </div>
@@ -587,7 +587,7 @@ export function App() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-heading">
-              <h2 id="storyboard-help-title">文字ネーム</h2>
+              <h2 id="storyboard-help-title">{t.storyboard}</h2>
               <button
                 type="button"
                 className="icon-button"
@@ -598,13 +598,13 @@ export function App() {
               </button>
             </div>
             <p className="page-help-text">
-              １行＝１コマです。
+              {t.storyboardHelpLine1}
               <br />
-              各列を入力することで、自動的にネームにコマ割りが生成されます。
+              {t.storyboardHelpLine2}
               <br />
-              行＝コマの複製と削除もできます。
+              {t.storyboardHelpLine3}
               <br />
-              最下行の＋ボタンを押すと、行＝コマを追加できます。
+              {t.storyboardHelpLine4}
             </p>
           </section>
         </div>
@@ -620,21 +620,21 @@ export function App() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-heading">
-              <h2 id="preview-help-title">ネーム</h2>
+              <h2 id="preview-help-title">{t.preview}</h2>
               <button type="button" className="icon-button" onClick={() => setIsPreviewHelpOpen(false)} title={t.close}>
                 <X size={18} />
               </button>
             </div>
             <p className="page-help-text">
-              コマの幅と高さをドラッグで調節できます。
+              {t.previewHelpLine1}
               <br />
-              コマをクリックすると、文字ネームの該当行がハイライトされます。
+              {t.previewHelpLine2}
               <br />
-              コマをダブルクリックすると、コマ枠無しにできます。
+              {t.previewHelpLine3}
               <br />
-              外側のコマは、矢印をクリックすることで伸ばしたり縮めたりできます。
+              {t.previewHelpLine4}
               <br />
-              クリアボタンを押すと、自動生成されたコマ割りに戻ります。
+              {t.previewHelpLine5}
             </p>
           </section>
         </div>
@@ -643,11 +643,11 @@ export function App() {
       <section className={`page-list-bar reading-${syncedProject.readingDirection}`} aria-label={t.pages}>
         <div className="page-list-header">
           <div className="page-list-title">
-            <h2>ページ一覧</h2>
+            <h2>{t.pages}</h2>
             <button
               type="button"
               className="help-button"
-              aria-label="ページ一覧の説明"
+              aria-label={t.pageHelpAria}
               onClick={() => setIsPageHelpOpen(true)}
             >
               ?
@@ -736,11 +736,11 @@ export function App() {
         <div className="editor-pane">
           <div className="editor-toolbar">
             <div className="page-list-title">
-              <h2>文字ネーム</h2>
+              <h2>{t.storyboard}</h2>
               <button
                 type="button"
                 className="help-button"
-                aria-label="文字ネームの説明"
+                aria-label={t.storyboardHelpAria}
                 onClick={() => setIsStoryboardHelpOpen(true)}
               >
                 ?
@@ -904,18 +904,18 @@ export function App() {
         <aside className="preview-pane">
           <div className="preview-toolbar">
             <div className="page-list-title">
-              <h2>ネーム</h2>
+              <h2>{t.preview}</h2>
               <button
                 type="button"
                 className="help-button"
-                aria-label="ネームの説明"
+                aria-label={t.previewHelpAria}
                 onClick={() => setIsPreviewHelpOpen(true)}
               >
                 ?
               </button>
             </div>
             <button type="button" className="button preview-clear-button" onClick={clearActivePageLayoutAdjustments}>
-              クリア
+              {t.clear}
             </button>
           </div>
           {activeLayout && (
@@ -1448,10 +1448,10 @@ function WarningBadge({ warning }: { warning: string }) {
 
 function getColumnWarnings(rows: PanelRow[]) {
   return {
-    panelSize: needsSizeVariation(rows.map((row) => row.panelSize)) ? "単調です" : undefined,
+    panelSize: needsSizeVariation(rows.map((row) => row.panelSize)) ? t.monotonousWarning : undefined,
     role: roleWarnings(rows),
-    camera: rows.length > 0 && rows.every((row) => row.camera === "正") ? "単調です" : undefined,
-    faceSize: needsFaceSizeVariation(rows.map((row) => row.faceSize)) ? "単調です" : undefined,
+    camera: rows.length > 0 && rows.every((row) => row.camera === cameraOptionLabels[0]) ? t.monotonousWarning : undefined,
+    faceSize: needsFaceSizeVariation(rows.map((row) => row.faceSize)) ? t.monotonousWarning : undefined,
   };
 }
 
@@ -1473,8 +1473,8 @@ function needsFaceSizeVariation(values: FaceSize[]) {
 function roleWarnings(rows: PanelRow[]) {
   const warnings: string[] = [];
   if (rows.length === 0) return undefined;
-  if (!rows.some((row) => row.role.includes("場"))) warnings.push("場所がわかりません");
-  if (!rows.some((row) => row.role.includes("魅"))) warnings.push("魅せゴマがありません");
+  if (!rows.some((row) => row.role.includes(roleOptionLabels[1]))) warnings.push(t.missingLocationWarning);
+  if (!rows.some((row) => row.role.includes(roleOptionLabels[3]))) warnings.push(t.missingHighlightPanelWarning);
   return warnings.length ? warnings.join("\n") : undefined;
 }
 
@@ -1592,11 +1592,11 @@ function getOuterBleedSide(blockedSide: "left" | "right"): "left" | "right" {
 }
 
 function getBleedControl(side: BleedSide) {
-  if (side === "top") return { label: "ページ上端まで伸ばす", icon: ArrowUp };
-  if (side === "bottom") return { label: "ページ下端まで伸ばす", icon: ArrowDown };
+  if (side === "top") return { label: t.extendToPageTop, icon: ArrowUp };
+  if (side === "bottom") return { label: t.extendToPageBottom, icon: ArrowDown };
   return side === "left"
-    ? { label: "ページ外側まで伸ばす", icon: ArrowLeft }
-    : { label: "ページ外側まで伸ばす", icon: ArrowRight };
+    ? { label: t.extendToPageOuter, icon: ArrowLeft }
+    : { label: t.extendToPageOuter, icon: ArrowRight };
 }
 
 function getPanelAllowedBleedSides(
@@ -1664,7 +1664,7 @@ function applyScaledWeights(values: number[], indexes: number[], scale: number) 
 
 function titleFromExcelFileName(fileName: string) {
   const baseName = fileName.replace(/\.[^.]+$/, "");
-  const title = baseName.replace(/(?:[_-]?文字ネーム|[_-]?text[-_ ]?storyboard)$/i, "").trim();
+  const title = baseName.replace(new RegExp(`(?:[_-]?${t.textStoryboardFileStem}|[_-]?text[-_ ]?storyboard)$`, "i"), "").trim();
   return title || "";
 }
 
