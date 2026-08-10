@@ -10,14 +10,25 @@ import {
   X,
 } from "lucide-react";
 import { emotionLabel, shapeLabel, sizeLabel, t } from "./i18n";
-import { downloadStoryboardXlsx, exportPagePng, exportPagesPdf, readSheetRows } from "./io";
+import {
+  downloadJson,
+  downloadStoryboardXlsx,
+  exportPagePng,
+  exportPagesPdf,
+  readProjectJson,
+  readSheetRows,
+} from "./io";
 import { rowsToLayouts } from "./layout";
 import { createDefaultProject, createPanelRow, loadProject, projectToRows, rowsToProject, saveProject } from "./storage";
-import type { EmotionSize, PanelRow, Project, Shape, Size } from "./types";
+import type { EmotionSize, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
 
-const sizeOptions: Size[] = ["small", "medium", "large"];
+const sizeOptions: Size[] = ["extraSmall", "small", "medium", "large", "extraLarge", "fullPage"];
 const shapeOptions: Shape[] = ["vertical", "square", "horizontal"];
 const emotionOptions = ["none", "small", "medium", "large"] as const;
+const minRowHeightWeight = 0.25;
+const minColumnWidthWeight = 0.25;
+const horizontalRowHeightWeight = 0.6;
+const gridColumnCount = 6;
 
 export function App() {
   const [project, setProject] = useState<Project>(() => loadProject() ?? createDefaultProject());
@@ -29,6 +40,7 @@ export function App() {
   const [dragOverPage, setDragOverPage] = useState<number | null>(null);
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
@@ -64,17 +76,39 @@ export function App() {
   }, [isSettingsOpen]);
 
   function updateProject(next: Partial<Project>) {
-    setStatus("編集中");
+    setStatus(t.edited);
     setProject((current) => ({ ...current, ...next }));
   }
 
+  function updateRowHeights(pageNumber: number, nextHeights: number[]) {
+    updateProject({
+      rowHeights: {
+        ...(project.rowHeights ?? {}),
+        [pageNumber]: nextHeights,
+      },
+    });
+  }
+
+  function updateRowWidths(pageNumber: number, rowIndex: number, nextWidths: number[]) {
+    const pageRowWidths = project.rowWidths?.[pageNumber] ?? [];
+    const nextPageRowWidths = [...pageRowWidths];
+    nextPageRowWidths[rowIndex] = nextWidths;
+
+    updateProject({
+      rowWidths: {
+        ...(project.rowWidths ?? {}),
+        [pageNumber]: nextPageRowWidths,
+      },
+    });
+  }
+
   function updateRow(id: string, patch: Partial<PanelRow>) {
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)).map(normalizeOrder));
   }
 
   function duplicateRow(id: string) {
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => {
       const index = current.findIndex((row) => row.id === id);
       if (index < 0) return current;
@@ -85,7 +119,7 @@ export function App() {
   }
 
   function deleteRow(id: string) {
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => {
       if (current.length === 1) return current;
       return current.filter((row) => row.id !== id).map(normalizeOrder);
@@ -93,7 +127,7 @@ export function App() {
   }
 
   function appendRowToActivePage() {
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => {
       const lastIndex = current.reduce((foundIndex, row, index) => (row.pageNumber === activePage ? index : foundIndex), -1);
       const insertIndex = lastIndex >= 0 ? lastIndex + 1 : current.length;
@@ -104,7 +138,7 @@ export function App() {
   }
 
   function deletePage(pageNumber: number) {
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => {
       const remaining = current.filter((row) => row.pageNumber !== pageNumber);
       if (remaining.length === 0) {
@@ -122,7 +156,7 @@ export function App() {
   }
 
   function appendPage() {
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => {
       const maxPage = Math.max(...current.map((row) => row.pageNumber), 0);
       const nextPage = maxPage + 1;
@@ -134,7 +168,7 @@ export function App() {
   function reorderPages(fromPage: number, toPage: number) {
     if (fromPage === toPage) return;
 
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => {
       const pageNumbers = Array.from(new Set(current.map((row) => row.pageNumber))).sort((a, b) => a - b);
       const fromIndex = pageNumbers.indexOf(fromPage);
@@ -155,7 +189,7 @@ export function App() {
   function reorderRows(fromId: string, toId: string) {
     if (fromId === toId) return;
 
-    setStatus("編集中");
+    setStatus(t.edited);
     setRows((current) => {
       const pageRows = current
         .filter((row) => row.pageNumber === activePage)
@@ -187,7 +221,17 @@ export function App() {
     }
     setRows(importedRows.map(normalizeOrder));
     setActivePage(importedRows[0]?.pageNumber ?? 1);
-    setStatus("表データを読み込みました");
+    setStatus(t.sheetLoaded);
+  }
+
+  async function importProjectJson(file?: File) {
+    if (!file) return;
+    const importedProject = await readProjectJson(file);
+    const importedRows = projectToRows(importedProject);
+    setProject(importedProject);
+    setRows(importedRows.map(normalizeOrder));
+    setActivePage(importedRows[0]?.pageNumber ?? importedProject.pages[0]?.pageNumber ?? 1);
+    setStatus(t.jsonLoaded);
   }
 
   return (
@@ -198,17 +242,39 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <button type="button" className="header-button" onClick={() => setIsSettingsOpen(true)}>
-            漫画の設定
-          </button>
-          <button type="button" className="header-button" onClick={() => sheetInputRef.current?.click()}>
-            インポート
-          </button>
-          <button type="button" className="header-button" onClick={() => downloadStoryboardXlsx(rows, project.title)}>
-            エクスポート
+            {t.settings}
           </button>
           <details className="header-menu">
             <summary>
-              ダウンロード
+              {t.import}
+              <ChevronDown size={15} />
+            </summary>
+            <div className="dropdown-panel">
+              <button type="button" className="button" onClick={() => sheetInputRef.current?.click()}>
+                {t.importSheet}
+              </button>
+              <button type="button" className="button" onClick={() => jsonInputRef.current?.click()}>
+                {t.importJson}
+              </button>
+            </div>
+          </details>
+          <details className="header-menu">
+            <summary>
+              {t.export}
+              <ChevronDown size={15} />
+            </summary>
+            <div className="dropdown-panel">
+              <button type="button" className="button" onClick={() => downloadStoryboardXlsx(rows, project.title)}>
+                {t.exportSheet}
+              </button>
+              <button type="button" className="button" onClick={() => downloadJson(syncedProject)}>
+                {t.exportJson}
+              </button>
+            </div>
+          </details>
+          <details className="header-menu">
+            <summary>
+              {t.downloads}
               <ChevronDown size={15} />
             </summary>
             <div className="dropdown-panel">
@@ -220,11 +286,11 @@ export function App() {
                   if (pageEl) exportPagePng(pageEl, `${project.title}-page-${activePage}.png`);
                 }}
               >
-                PNG（選択中ページ）
+                {t.exportPngActivePage}
               </button>
               <button
                 type="button"
-                className="button primary"
+                className="button"
                 onClick={() => {
                   const pageEls = layouts
                     .map((layout) => pageRefs.current[layout.pageNumber])
@@ -232,17 +298,30 @@ export function App() {
                   exportPagesPdf(pageEls, `${project.title}_コマ割り.pdf`);
                 }}
               >
-                PDF（全ページ）
+                {t.exportPdfAllPages}
               </button>
             </div>
           </details>
         </div>
         <input
+          ref={jsonInputRef}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(event) => {
+            importProjectJson(event.target.files?.[0]);
+            event.currentTarget.value = "";
+          }}
+        />
+        <input
           ref={sheetInputRef}
           type="file"
           accept=".csv,.tsv,.txt,.xlsx,.xls"
           hidden
-          onChange={(event) => importSheet(event.target.files?.[0])}
+          onChange={(event) => {
+            importSheet(event.target.files?.[0]);
+            event.currentTarget.value = "";
+          }}
         />
       </header>
 
@@ -256,8 +335,8 @@ export function App() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-heading">
-              <h2 id="settings-title">漫画の設定</h2>
-              <button type="button" className="icon-button" onClick={() => setIsSettingsOpen(false)} title="閉じる">
+              <h2 id="settings-title">{t.settings}</h2>
+              <button type="button" className="icon-button" onClick={() => setIsSettingsOpen(false)} title={t.close}>
                 <X size={18} />
               </button>
             </div>
@@ -273,14 +352,14 @@ export function App() {
                   className={project.readingDirection === "rtl" ? "active" : ""}
                   onClick={() => updateProject({ readingDirection: "rtl" })}
                 >
-                  右から左
+                  {t.readingRightToLeft}
                 </button>
                 <button
                   type="button"
                   className={project.readingDirection === "ltr" ? "active" : ""}
                   onClick={() => updateProject({ readingDirection: "ltr" })}
                 >
-                  左から右
+                  {t.readingLeftToRight}
                 </button>
               </div>
             </div>
@@ -330,7 +409,7 @@ export function App() {
                   role="button"
                   tabIndex={0}
                   className="thumb-delete"
-                  title="ページ削除"
+                  title={t.deletePage}
                   onClick={(event) => {
                     event.stopPropagation();
                     deletePage(layout.pageNumber);
@@ -345,10 +424,14 @@ export function App() {
                   <Trash2 size={14} />
                 </span>
               </span>
-              <MiniPage layout={layout} />
+              <MiniPage
+                layout={layout}
+                rowHeights={project.rowHeights?.[layout.pageNumber]}
+                rowWidths={project.rowWidths?.[layout.pageNumber]}
+              />
             </button>
           ))}
-          <button type="button" className="page-thumb add-page-thumb" onClick={appendPage} title="ページ追加">
+          <button type="button" className="page-thumb add-page-thumb" onClick={appendPage} title={t.addPage}>
             <Plus size={28} />
           </button>
         </div>
@@ -360,6 +443,7 @@ export function App() {
             <table className="storyboard-table">
               <thead>
                 <tr>
+                  <th>No.</th>
                   <th>{t.emotion}</th>
                   <th>{t.size}</th>
                   <th>{t.role}</th>
@@ -370,7 +454,7 @@ export function App() {
                 </tr>
               </thead>
               <tbody>
-                    {activeRows.map((row) => (
+                    {activeRows.map((row, rowIndex) => (
                       <tr
                         key={row.id}
                         draggable
@@ -402,12 +486,13 @@ export function App() {
                           setDragOverRowId(null);
                         }}
                       >
+                        <td className="panel-index-cell">{rowIndex + 1}</td>
                         <td>
                           <SelectCell
                             value={row.emotionSize ?? "none"}
                             warning={row.warnings?.emotionSize}
                             onChange={(value) =>
-                              updateRow(row.id, { emotionSize: value === "none" ? null : (value as Size) })
+                              updateRow(row.id, { emotionSize: value === "none" ? null : (value as NonNullable<EmotionSize>) })
                             }
                           >
                             {emotionOptions.map((value) => (
@@ -472,8 +557,8 @@ export function App() {
                       </tr>
                     ))}
                     <tr className="add-panel-row">
-                      <td colSpan={7}>
-                        <button type="button" onClick={appendRowToActivePage} title="コマ追加">
+                      <td colSpan={8}>
+                        <button type="button" onClick={appendRowToActivePage} title={t.addPanel}>
                           <Plus size={20} />
                         </button>
                       </td>
@@ -489,6 +574,10 @@ export function App() {
               {activeLayout.warning && <p className="warning">{activeLayout.warning}</p>}
               <PagePreview
                 layout={activeLayout}
+                rowHeights={project.rowHeights?.[activeLayout.pageNumber]}
+                rowWidths={project.rowWidths?.[activeLayout.pageNumber]}
+                onRowResize={(nextHeights) => updateRowHeights(activeLayout.pageNumber, nextHeights)}
+                onColumnResize={(rowIndex, nextWidths) => updateRowWidths(activeLayout.pageNumber, rowIndex, nextWidths)}
                 register={(node) => {
                   pageRefs.current[activeLayout.pageNumber] = node;
                 }}
@@ -502,6 +591,8 @@ export function App() {
           <PageCanvas
             key={layout.pageNumber}
             layout={layout}
+            rowHeights={project.rowHeights?.[layout.pageNumber]}
+            rowWidths={project.rowWidths?.[layout.pageNumber]}
             register={(node) => {
               if (node) pageRefs.current[layout.pageNumber] = node;
             }}
@@ -514,41 +605,160 @@ export function App() {
 
 function PagePreview({
   layout,
+  rowHeights,
+  rowWidths,
+  onRowResize,
+  onColumnResize,
   register,
 }: {
   layout: ReturnType<typeof rowsToLayouts>[number];
+  rowHeights?: number[];
+  rowWidths?: number[][];
+  onRowResize: (nextHeights: number[]) => void;
+  onColumnResize: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
 }) {
   return (
     <div className="page-stage">
-      <PageCanvas layout={layout} register={register} />
+      <PageCanvas
+        layout={layout}
+        rowHeights={rowHeights}
+        rowWidths={rowWidths}
+        onRowResize={onRowResize}
+        onColumnResize={onColumnResize}
+        register={register}
+      />
     </div>
   );
 }
 
 function PageCanvas({
   layout,
+  rowHeights,
+  rowWidths,
+  onRowResize,
+  onColumnResize,
   register,
 }: {
   layout: ReturnType<typeof rowsToLayouts>[number];
+  rowHeights?: number[];
+  rowWidths?: number[][];
+  onRowResize?: (nextHeights: number[]) => void;
+  onColumnResize?: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
 }) {
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  const normalizedRowHeights = normalizeRowHeights(rowHeights, layout.rows);
+  const normalizedRowWidths = normalizeRowWidths(rowWidths, layout.rows.length);
+
+  function setPageNode(node: HTMLDivElement | null) {
+    pageRef.current = node;
+    register(node);
+  }
+
+  function startRowResize(event: React.PointerEvent<HTMLButtonElement>, rowIndex: number) {
+    if (!onRowResize || !pageRef.current) return;
+    event.preventDefault();
+
+    const commitRowResize = onRowResize;
+    const startY = event.clientY;
+    const startHeights = normalizedRowHeights;
+    const rowEls = Array.from(pageRef.current.querySelectorAll<HTMLElement>(".layout-row"));
+    const availableHeight = rowEls.reduce((total, rowEl) => total + rowEl.getBoundingClientRect().height, 0);
+    const totalWeight = startHeights.reduce((total, weight) => total + weight, 0);
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    function resize(moveEvent: PointerEvent) {
+      const deltaWeight = ((moveEvent.clientY - startY) / Math.max(availableHeight, 1)) * totalWeight;
+      const previous = startHeights[rowIndex] + deltaWeight;
+      const next = startHeights[rowIndex + 1] - deltaWeight;
+
+      if (previous < minRowHeightWeight || next < minRowHeightWeight) return;
+
+      const resized = [...startHeights];
+      resized[rowIndex] = previous;
+      resized[rowIndex + 1] = next;
+      commitRowResize(resized);
+    }
+
+    function stopResize() {
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", stopResize);
+      window.removeEventListener("pointercancel", stopResize);
+    }
+
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", stopResize);
+    window.addEventListener("pointercancel", stopResize);
+  }
+
+  function startColumnResize(event: React.PointerEvent<HTMLButtonElement>, rowIndex: number, boundary: number) {
+    if (!onColumnResize || !pageRef.current) return;
+    event.preventDefault();
+
+    const rowEl = pageRef.current.querySelectorAll<HTMLElement>(".layout-row")[rowIndex];
+    if (!rowEl) return;
+
+    const commitColumnResize = onColumnResize;
+    const startX = event.clientX;
+    const startWidths = normalizedRowWidths[rowIndex];
+    const rowWidth = rowEl.getBoundingClientRect().width;
+    const totalWeight = startWidths.reduce((total, weight) => total + weight, 0);
+    const leftIndexes = Array.from({ length: boundary }, (_, index) => index);
+    const rightIndexes = Array.from({ length: gridColumnCount - boundary }, (_, index) => boundary + index);
+    const leftStart = sumIndexes(startWidths, leftIndexes);
+    const rightStart = sumIndexes(startWidths, rightIndexes);
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    function resize(moveEvent: PointerEvent) {
+      const deltaWeight = ((moveEvent.clientX - startX) / Math.max(rowWidth, 1)) * totalWeight;
+      const nextLeft = leftStart + deltaWeight;
+      const nextRight = rightStart - deltaWeight;
+      const minLeft = leftIndexes.length * minColumnWidthWeight;
+      const minRight = rightIndexes.length * minColumnWidthWeight;
+
+      if (nextLeft < minLeft || nextRight < minRight) return;
+
+      const resized = [...startWidths];
+      applyScaledWeights(resized, leftIndexes, nextLeft / leftStart);
+      applyScaledWeights(resized, rightIndexes, nextRight / rightStart);
+      commitColumnResize(rowIndex, resized);
+    }
+
+    function stopResize() {
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", stopResize);
+      window.removeEventListener("pointercancel", stopResize);
+    }
+
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", stopResize);
+    window.addEventListener("pointercancel", stopResize);
+  }
+
   return (
-    <div className="manga-page" ref={register}>
+    <div className="manga-page" ref={setPageNode}>
       {layout.rows.map((row, rowIndex) => (
-        <div className="layout-row" key={rowIndex}>
+        <div className="layout-row-group" key={rowIndex}>
+          <div
+            className="layout-row"
+            style={{
+              flex: `${normalizedRowHeights[rowIndex]} 1 0`,
+              gridTemplateColumns: normalizedRowWidths[rowIndex].map((weight) => `${weight}fr`).join(" "),
+            }}
+          >
           {row.panels.map((panel) => (
             <article
               key={panel.id}
               className={`panel-frame ${panel.shape}`}
-              style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}` }}
+              style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }}
             >
               <div className="panel-number" data-export-text>
                 {panel.visualNumber}
               </div>
               <div className="panel-meta" data-export-text>
-                {sizeLabel[panel.panelSize]}・{shapeLabel[panel.shape]}
-                {panel.camera ? `・${panel.camera}` : ""}
+                {sizeLabel[panel.panelSize]}{t.panelSeparator}{shapeLabel[panel.shape]}
+                {panel.camera ? `${t.panelSeparator}${panel.camera}` : ""}
               </div>
               {panel.role && (
                 <div className="panel-role" data-export-text>
@@ -558,20 +768,96 @@ function PageCanvas({
               <p data-export-text>{panel.content}</p>
             </article>
           ))}
+            {row.stacks?.map((stack, stackIndex) => (
+              <div
+                className="panel-stack"
+                key={stackIndex}
+                style={{ gridColumn: `${stack.colStart} / span ${stack.colSpan}`, gridRow: 1 }}
+              >
+                {stack.panels.map((panel) => (
+                  <article key={panel.id} className={`panel-frame ${panel.shape}`}>
+                    <div className="panel-number" data-export-text>
+                      {panel.visualNumber}
+                    </div>
+                    <div className="panel-meta" data-export-text>
+                      {sizeLabel[panel.panelSize]}{t.panelSeparator}{shapeLabel[panel.shape]}
+                      {panel.camera ? `${t.panelSeparator}${panel.camera}` : ""}
+                    </div>
+                    {panel.role && (
+                      <div className="panel-role" data-export-text>
+                        {panel.role}
+                      </div>
+                    )}
+                    <p data-export-text>{panel.content}</p>
+                  </article>
+                ))}
+              </div>
+            ))}
+            {onColumnResize &&
+              getColumnBoundaries(row).map((boundary) => (
+                <button
+                  type="button"
+                  className="column-resizer"
+                  aria-label={t.resizeColumn}
+                  key={boundary}
+                  style={{ gridColumn: `${boundary + 1} / span 1`, gridRow: 1 }}
+                  onPointerDown={(event) => startColumnResize(event, rowIndex, boundary)}
+                />
+              ))}
+          </div>
+          {rowIndex < layout.rows.length - 1 &&
+            (onRowResize ? (
+              <button
+                type="button"
+                className="row-resizer"
+                aria-label={t.resizeRow}
+                onPointerDown={(event) => startRowResize(event, rowIndex)}
+              />
+            ) : (
+              <div className="row-resizer row-resizer-static" />
+            ))}
         </div>
       ))}
     </div>
   );
 }
 
-function MiniPage({ layout }: { layout: ReturnType<typeof rowsToLayouts>[number] }) {
+function MiniPage({
+  layout,
+  rowHeights,
+  rowWidths,
+}: {
+  layout: ReturnType<typeof rowsToLayouts>[number];
+  rowHeights?: number[];
+  rowWidths?: number[][];
+}) {
+  const normalizedRowHeights = normalizeRowHeights(rowHeights, layout.rows);
+  const normalizedRowWidths = normalizeRowWidths(rowWidths, layout.rows.length);
+
   return (
     <div className="mini-page">
       {layout.rows.map((row, rowIndex) => (
-        <div className="mini-row" key={rowIndex}>
-          {row.panels.map((panel) => (
-            <span key={panel.id} style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}` }} />
-          ))}
+        <div className="mini-row-group" key={rowIndex} style={{ flex: `${normalizedRowHeights[rowIndex]} 1 0` }}>
+          <div
+            className="mini-row"
+            style={{ gridTemplateColumns: normalizedRowWidths[rowIndex].map((weight) => `${weight}fr`).join(" ") }}
+          >
+            {row.panels.map((panel) => (
+              <span key={panel.id} style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }} />
+            ))}
+            {row.stacks?.map((stack, stackIndex) => (
+              <span
+                className="mini-stack"
+                key={`stack-${stackIndex}`}
+                style={{ gridColumn: `${stack.colStart} / span ${stack.colSpan}`, gridRow: 1 }}
+              >
+                {stack.panels.map((panel) => (
+                  <i key={panel.id} />
+                ))}
+              </span>
+            ))}
+          </div>
+          {rowIndex < layout.rows.length - 1 && <div className="mini-row-gap" />}
         </div>
       ))}
     </div>
@@ -603,8 +889,55 @@ function normalizeOrder<T extends PanelRow>(row: T, order: number): T {
   return { ...row, order };
 }
 
+function normalizeRowHeights(rowHeights: number[] | undefined, rows: LayoutRow[]) {
+  return rows.map((row, index) => {
+    const weight = rowHeights?.[index];
+    if (typeof weight === "number" && Number.isFinite(weight) && weight > 0) return weight;
+    if (row.stacks?.length) return 2;
+    return row.panels.some((panel) => panel.shape === "horizontal") ? horizontalRowHeightWeight : 1;
+  });
+}
+
+function normalizeRowWidths(rowWidths: number[][] | undefined, rowCount: number) {
+  return Array.from({ length: rowCount }, (_, rowIndex) =>
+    Array.from({ length: gridColumnCount }, (_, columnIndex) => {
+      const weight = rowWidths?.[rowIndex]?.[columnIndex];
+      return typeof weight === "number" && Number.isFinite(weight) && weight > 0 ? weight : 1;
+    }),
+  );
+}
+
+function getColumnBoundaries(row: LayoutRow) {
+  const items = [
+    ...row.panels.map((panel) => ({ colStart: panel.colStart, colSpan: panel.colSpan })),
+    ...(row.stacks ?? []).map((stack) => ({ colStart: stack.colStart, colSpan: stack.colSpan })),
+  ].sort((a, b) => a.colStart - b.colStart);
+
+  const boundaries: number[] = [];
+  items.forEach((item, index) => {
+    const next = items[index + 1];
+    if (!next) return;
+
+    const boundary = item.colStart + item.colSpan - 1;
+    if (next.colStart === boundary + 1) boundaries.push(boundary);
+  });
+
+  return boundaries;
+}
+
+function sumIndexes(values: number[], indexes: number[]) {
+  return indexes.reduce((total, index) => total + values[index], 0);
+}
+
+function applyScaledWeights(values: number[], indexes: number[], scale: number) {
+  indexes.forEach((index) => {
+    values[index] *= scale;
+  });
+}
+
 function titleFromExcelFileName(fileName: string) {
   const baseName = fileName.replace(/\.[^.]+$/, "");
   const title = baseName.replace(/(?:[_-]?文字ネーム|[_-]?text[-_ ]?storyboard)$/i, "").trim();
   return title || "";
 }
+

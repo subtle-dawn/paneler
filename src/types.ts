@@ -1,6 +1,6 @@
 export type ReadingDirection = "rtl" | "ltr";
-export type Size = "small" | "medium" | "large";
-export type EmotionSize = Size | null;
+export type EmotionSize = "small" | "medium" | "large" | null;
+export type Size = "extraSmall" | "small" | "medium" | "large" | "extraLarge" | "fullPage";
 export type Shape = "vertical" | "square" | "horizontal";
 
 export type Panel = {
@@ -24,6 +24,8 @@ export type Project = {
   id: string;
   title: string;
   readingDirection: ReadingDirection;
+  rowHeights?: Record<string, number[]>;
+  rowWidths?: Record<string, number[][]>;
   pages: Page[];
 };
 
@@ -42,6 +44,11 @@ export type LayoutPanel = Panel & {
 
 export type LayoutRow = {
   panels: LayoutPanel[];
+  stacks?: Array<{
+    panels: LayoutPanel[];
+    colStart: number;
+    colSpan: number;
+  }>;
   usedColumns: number;
 };
 

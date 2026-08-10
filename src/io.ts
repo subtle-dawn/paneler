@@ -3,6 +3,7 @@ import { createId, createPanelRow } from "./storage";
 import type { EmotionSize, PanelRow, Project, Shape, Size } from "./types";
 
 type RawSheetRow = Record<string, unknown>;
+const STORYBOARD_TEMPLATE_URL = "/templates/storyboard-template.xlsx";
 
 const headerMap: Record<string, keyof PanelRow | "content"> = {
   page: "pageNumber",
@@ -30,7 +31,45 @@ export function downloadJson(project: Project) {
 }
 
 export async function downloadStoryboardXlsx(rows: PanelRow[], title: string) {
+  const table = storyboardRowsForExport(rows);
+  const data = await buildStoryboardTemplateXlsx(table);
+  downloadBlob(
+    `${safeFileName(title)}_文字ネーム.xlsx`,
+    data,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+}
+
+async function downloadStoryboardXlsxLegacy(rows: PanelRow[], title: string) {
   const xlsx = await import("xlsx");
+  const sorted = rows.slice().sort((a, b) => a.pageNumber - b.pageNumber || a.order - b.order);
+  const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "内容"]];
+  let currentPage = 0;
+
+  sorted.forEach((row) => {
+    if (row.pageNumber !== currentPage) {
+      currentPage = row.pageNumber;
+      table.push([`${currentPage}ページ目`, pageSideLabel(currentPage), "", "", "", ""]);
+    }
+
+    table.push([
+      row.emotionSize ? sizeLabel[row.emotionSize] : "なし",
+      sizeLabel[row.panelSize],
+      row.role,
+      shapeLabel[row.shape],
+      normalizeCameraForExport(row.camera),
+      row.content,
+    ]);
+  });
+
+  const worksheet = xlsx.utils.aoa_to_sheet(table);
+  worksheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 64 }];
+  const workbook = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(workbook, worksheet, "文字ネーム");
+  xlsx.writeFile(workbook, `${safeFileName(title)}_文字ネーム.xlsx`);
+}
+
+function storyboardRowsForExport(rows: PanelRow[]) {
   const sorted = rows.slice().sort((a, b) => a.pageNumber - b.pageNumber || a.order - b.order);
   const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "内容"]];
   let currentPage = 0;
@@ -51,11 +90,155 @@ export async function downloadStoryboardXlsx(rows: PanelRow[], title: string) {
     ]);
   });
 
-  const worksheet = xlsx.utils.aoa_to_sheet(table);
-  worksheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 64 }];
-  const workbook = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(workbook, worksheet, "文字ネーム");
-  xlsx.writeFile(workbook, `${safeFileName(title)}_文字ネーム.xlsx`);
+  return table;
+}
+
+async function loadStoryboardTemplateWorkbook(xlsx: typeof import("xlsx")) {
+  const response = await fetch(STORYBOARD_TEMPLATE_URL);
+  if (!response.ok) throw new Error("文字ネームテンプレートを読み込めませんでした");
+
+  return xlsx.read(await response.arrayBuffer(), { cellStyles: true });
+}
+
+async function buildStoryboardTemplateXlsx(table: string[][]) {
+  const fflate = await import("fflate");
+  const response = await fetch(STORYBOARD_TEMPLATE_URL);
+  if (!response.ok) throw new Error("文字ネームテンプレートを読み込めませんでした");
+
+  const archive = fflate.unzipSync(new Uint8Array(await response.arrayBuffer()));
+  const sheetPath = firstWorksheetPath(archive);
+  const sheetXml = fflate.strFromU8(archive[sheetPath]);
+  const nextSheetXml = replaceSheetData(sheetXml, table);
+
+  archive[sheetPath] = fflate.strToU8(nextSheetXml);
+  return fflate.zipSync(archive, { level: 6 });
+}
+
+function firstWorksheetPath(archive: Record<string, Uint8Array>) {
+  const path = Object.keys(archive)
+    .filter((key) => /^xl\/worksheets\/sheet\d+\.xml$/.test(key))
+    .sort()[0];
+
+  if (!path) throw new Error("文字ネームテンプレートにワークシートが見つかりませんでした");
+  return path;
+}
+
+function replaceSheetData(sheetXml: string, table: string[][]) {
+  const sheetData = `<sheetData>${table.map((cells, rowIndex) => storyboardXmlRow(cells, rowIndex)).join("")}</sheetData>`;
+  const maxRow = Math.max(table.length, 1);
+  const contentColumnWidth = calculateContentColumnWidth(table);
+
+  const nextSheetXml = sheetXml
+    .replace(/<dimension ref="[^"]*"\s*\/>/, `<dimension ref="A1:F${maxRow}"/>`)
+    .replace(/<col min="6" max="6"[^>]*\/>/, `<col min="6" max="6" width="${contentColumnWidth}" style="3" customWidth="1"/>`)
+    .replace(/<sheetData>[\s\S]*?<\/sheetData>/, sheetData);
+
+  return nextSheetXml;
+}
+
+function storyboardConditionalFormattingXml() {
+  return [
+    `<conditionalFormatting sqref="B1:B1048576"><cfRule type="cellIs" dxfId="16" priority="1" operator="equal"><formula>"極大"</formula></cfRule><cfRule type="cellIs" dxfId="20" priority="2" operator="equal"><formula>"極小"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="E1:E1048576"><cfRule type="cellIs" dxfId="23" priority="3" operator="equal"><formula>"下"</formula></cfRule><cfRule type="cellIs" dxfId="23" priority="4" operator="equal"><formula>"上"</formula></cfRule><cfRule type="cellIs" dxfId="23" priority="7" operator="equal"><formula>"寄"</formula></cfRule><cfRule type="cellIs" dxfId="23" priority="11" operator="equal"><formula>"引"</formula></cfRule><cfRule type="cellIs" dxfId="22" priority="12" operator="equal"><formula>"煽"</formula></cfRule><cfRule type="cellIs" dxfId="21" priority="13" operator="equal"><formula>"俯"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="C1:C1048576"><cfRule type="cellIs" dxfId="32" priority="5" operator="equal"><formula>"場、時"</formula></cfRule><cfRule type="cellIs" dxfId="31" priority="6" operator="equal"><formula>"時"</formula></cfRule><cfRule type="cellIs" dxfId="30" priority="14" operator="equal"><formula>"予"</formula></cfRule><cfRule type="containsText" dxfId="29" priority="15" operator="containsText" text="魅"><formula>NOT(ISERROR(SEARCH("魅",C1)))</formula></cfRule><cfRule type="cellIs" dxfId="28" priority="16" operator="equal"><formula>"場"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="D1:E1048576"><cfRule type="cellIs" dxfId="26" priority="8" operator="equal"><formula>"正"</formula></cfRule><cfRule type="cellIs" dxfId="25" priority="9" operator="equal"><formula>"横"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="D1:D1048576"><cfRule type="cellIs" dxfId="27" priority="10" operator="equal"><formula>"縦"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="A1:B1048576"><cfRule type="cellIs" dxfId="19" priority="17" operator="equal"><formula>"小"</formula></cfRule><cfRule type="cellIs" dxfId="18" priority="18" operator="equal"><formula>"中"</formula></cfRule><cfRule type="cellIs" dxfId="17" priority="19" operator="equal"><formula>"大"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="A1:F1048576"><cfRule type="expression" dxfId="33" priority="20"><formula>IF($F1="",TRUE)</formula></cfRule></conditionalFormatting>`,
+  ].join("");
+}
+
+function calculateContentColumnWidth(table: string[][]) {
+  const maxLength = Math.max(
+    8,
+    ...table.slice(1).map((cells) => stringDisplayWidth(cells[5] ?? "")),
+  );
+
+  return Math.min(Math.ceil(maxLength * 1.15 + 2), 120);
+}
+
+function stringDisplayWidth(value: string) {
+  return Array.from(value).reduce((total, char) => total + (char.charCodeAt(0) > 0xff ? 2 : 1), 0);
+}
+
+function storyboardXmlRow(cells: string[], rowIndex: number) {
+  const rowNumber = rowIndex + 1;
+  const isHeader = rowIndex === 0;
+  const isPageRow = rowIndex > 0 && (cells[0] ?? "").endsWith("ページ目");
+  const rowAttributes = isPageRow ? ` r="${rowNumber}" spans="1:6" s="5" customFormat="1"` : ` r="${rowNumber}" spans="1:6"`;
+
+  return `<row${rowAttributes}>${Array.from({ length: 6 }, (_, colIndex) =>
+    storyboardXmlCell(cells[colIndex] ?? "", rowNumber, colIndex, isHeader, isPageRow),
+  ).join("")}</row>`;
+}
+
+function storyboardXmlCell(value: string, rowNumber: number, colIndex: number, isHeader: boolean, isPageRow: boolean) {
+  const address = `${String.fromCharCode(65 + colIndex)}${rowNumber}`;
+  const style = isHeader ? 1 : isPageRow ? 4 : 2;
+  if (!value) return `<c r="${address}" s="${style}"/>`;
+
+  return `<c r="${address}" s="${style}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`;
+}
+
+function escapeXml(value: string) {
+  return value
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function normalizeCameraForExport(value: string) {
+  return value.trim() === "アップ" ? "寄" : value;
+}
+
+function writeStoryboardRowsToTemplate(
+  xlsx: typeof import("xlsx"),
+  worksheet: import("xlsx").WorkSheet,
+  table: string[][],
+) {
+  const pageRowStyles = getRowStyles(worksheet, 2);
+  const dataRowStyles = getRowStyles(worksheet, 3);
+  const maxRows = Math.max(table.length, rangeEndRow(worksheet));
+
+  for (let rowIndex = 1; rowIndex <= maxRows; rowIndex += 1) {
+    for (let colIndex = 0; colIndex < 6; colIndex += 1) {
+      const address = xlsx.utils.encode_cell({ r: rowIndex, c: colIndex });
+      delete worksheet[address];
+    }
+  }
+
+  table.forEach((cells, rowIndex) => {
+    const isHeader = rowIndex === 0;
+    const isPageRow = rowIndex > 0 && cells[0].endsWith("ページ目");
+
+    cells.forEach((value, colIndex) => {
+      const address = xlsx.utils.encode_cell({ r: rowIndex, c: colIndex });
+      const existing = worksheet[address];
+      const style = isHeader ? existing?.s : isPageRow ? pageRowStyles[colIndex] : dataRowStyles[colIndex];
+      worksheet[address] = value ? { t: "s", v: value, s: style } : { t: "z", s: style };
+    });
+  });
+
+  worksheet["!ref"] = xlsx.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: Math.max(table.length - 1, 0), c: 5 },
+  });
+}
+
+function getRowStyles(worksheet: import("xlsx").WorkSheet, rowNumber: number) {
+  return Array.from({ length: 6 }, (_, colIndex) => {
+    const address = String.fromCharCode(65 + colIndex) + rowNumber;
+    return worksheet[address]?.s;
+  });
+}
+
+function rangeEndRow(worksheet: import("xlsx").WorkSheet) {
+  const range = worksheet["!ref"];
+  if (!range) return 1;
+
+  return Number(range.match(/\d+$/)?.[0] ?? 1);
 }
 
 export function downloadCsv(rows: PanelRow[], title: string) {
@@ -268,16 +451,22 @@ function parsePageNumber(value: string) {
 
 function parseSize(value: string): { value: Size; warning?: string } {
   const normalized = value.trim().toLowerCase();
+  if (["極小", "xs", "extra small", "extrasmall"].includes(normalized)) return { value: "extraSmall" };
   if (["小", "small", "s"].includes(normalized)) return { value: "small" };
   if (["中", "medium", "m"].includes(normalized)) return { value: "medium" };
   if (["大", "large", "l"].includes(normalized)) return { value: "large" };
-  return { value: "small", warning: "小・中・大から選んでください" };
+  if (["特大", "extra large", "extralarge", "xl"].includes(normalized)) return { value: "extraLarge" };
+  if (["1ページ", "１ページ", "1page", "full page", "fullpage"].includes(normalized)) return { value: "fullPage" };
+  return { value: "small", warning: "極小・小・中・大・特大・1ページから選んでください" };
 }
 
 function parseEmotion(value: string): { value: EmotionSize; warning?: string } {
   const normalized = value.trim().toLowerCase();
   if (["", "なし", "none", "null", "-"].includes(normalized)) return { value: null };
-  return parseSize(normalized);
+  if (["小", "small", "s"].includes(normalized)) return { value: "small" };
+  if (["中", "medium", "m"].includes(normalized)) return { value: "medium" };
+  if (["大", "large", "l"].includes(normalized)) return { value: "large" };
+  return { value: null, warning: "小・中・大から選んでください" };
 }
 
 function parseShape(value: string): { value: Shape; warning?: string } {
