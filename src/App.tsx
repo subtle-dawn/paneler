@@ -1,4 +1,4 @@
-import { ChangeEvent, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+﻿import { ChangeEvent, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowDown,
@@ -20,6 +20,7 @@ import {
   downloadJson,
   downloadStoryboardXlsx,
   exportPagePng,
+  exportPagesPngZip,
   exportPagesPdf,
   readProjectJson,
   readSheetRows,
@@ -40,6 +41,8 @@ const horizontalRowHeightWeight = 0.6;
 const gridColumnCount = 6;
 const pageBorderBleedAmount = 40;
 const miniPageBorderBleedAmount = 4;
+type DownloadFormat = "png" | "pdf";
+type DownloadScope = "active" | "all";
 
 export function App() {
   const [project, setProject] = useState<Project>(() => loadProject() ?? createDefaultProject());
@@ -49,6 +52,10 @@ export function App() {
   const [activePage, setActivePage] = useState(1);
   const [status, setStatus] = useState(t.saved);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("png");
+  const [downloadScope, setDownloadScope] = useState<DownloadScope>("active");
+  const [isDownloading, setIsDownloading] = useState(false);
   const [isPageHelpOpen, setIsPageHelpOpen] = useState(false);
   const [isStoryboardHelpOpen, setIsStoryboardHelpOpen] = useState(false);
   const [isPreviewHelpOpen, setIsPreviewHelpOpen] = useState(false);
@@ -330,6 +337,56 @@ export function App() {
     setStatus(t.jsonLoaded);
   }
 
+  function formatPageNumber(pageNumber: number) {
+    return String(pageNumber).padStart(3, "0");
+  }
+
+  async function downloadSelectedPages() {
+    if (isDownloading) return;
+
+    setIsDownloading(true);
+    try {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+
+      if (downloadScope === "active") {
+        const pageEl = pageRefs.current[activePage];
+        if (!pageEl) return;
+
+        if (downloadFormat === "png") {
+          await exportPagePng(pageEl, `${project.title}_コマ割り_${formatPageNumber(activePage)}.png`);
+        } else {
+          await exportPagesPdf([pageEl], `${project.title}_コマ割り_${formatPageNumber(activePage)}.pdf`);
+        }
+        setIsDownloadOpen(false);
+        return;
+      }
+
+      if (downloadFormat === "png") {
+        const pages = layouts
+          .map((layout) => {
+            const pageEl = pageRefs.current[layout.pageNumber];
+            return pageEl
+              ? { pageEl, fileName: `${project.title}_コマ割り_${formatPageNumber(layout.pageNumber)}.png` }
+              : undefined;
+          })
+          .filter((page): page is { pageEl: HTMLDivElement; fileName: string } => Boolean(page));
+        await exportPagesPngZip(pages, `${project.title}_コマ割り.zip`);
+      } else {
+        const pageEls = layouts
+          .map((layout) => pageRefs.current[layout.pageNumber])
+          .filter((pageEl): pageEl is HTMLDivElement => Boolean(pageEl));
+        await exportPagesPdf(pageEls, `${project.title}_コマ割り.pdf`);
+      }
+
+      setIsDownloadOpen(false);
+    } catch (error) {
+      console.error(error);
+      window.alert("ダウンロードに失敗しました。もう一度試してください。");
+    } finally {
+      setIsDownloading(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -368,36 +425,9 @@ export function App() {
               </button>
             </div>
           </details>
-          <details className="header-menu">
-            <summary>
-              {t.downloads}
-              <ChevronDown size={15} />
-            </summary>
-            <div className="dropdown-panel">
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  const pageEl = pageRefs.current[activePage];
-                  if (pageEl) exportPagePng(pageEl, `${project.title}-page-${activePage}.png`);
-                }}
-              >
-                {t.exportPngActivePage}
-              </button>
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  const pageEls = layouts
-                    .map((layout) => pageRefs.current[layout.pageNumber])
-                    .filter((pageEl): pageEl is HTMLDivElement => Boolean(pageEl));
-                  exportPagesPdf(pageEls, `${project.title}_コマ割り.pdf`);
-                }}
-              >
-                {t.exportPdfAllPages}
-              </button>
-            </div>
-          </details>
+          <button type="button" className="header-button" onClick={() => setIsDownloadOpen(true)}>
+            {t.downloads}
+          </button>
         </div>
         <input
           ref={jsonInputRef}
@@ -420,6 +450,76 @@ export function App() {
           }}
         />
       </header>
+
+      {isDownloadOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsDownloadOpen(false)}>
+          <section
+            className="settings-modal download-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="download-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <h2 id="download-title">{t.downloads}</h2>
+              <button type="button" className="icon-button" onClick={() => setIsDownloadOpen(false)} title={t.close}>
+                <X size={18} />
+              </button>
+            </div>
+            <fieldset className="download-options">
+              <legend>{t.downloadFormat}</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="download-format"
+                  checked={downloadFormat === "png"}
+                  onChange={() => setDownloadFormat("png")}
+                />
+                <span>PNG</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="download-format"
+                  checked={downloadFormat === "pdf"}
+                  onChange={() => setDownloadFormat("pdf")}
+                />
+                <span>PDF</span>
+              </label>
+            </fieldset>
+            <fieldset className="download-options">
+              <legend>{t.downloadScope}</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="download-scope"
+                  checked={downloadScope === "active"}
+                  onChange={() => setDownloadScope("active")}
+                />
+                <span>{t.downloadActivePageOnly}</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="download-scope"
+                  checked={downloadScope === "all"}
+                  onChange={() => setDownloadScope("all")}
+                />
+                <span>{t.downloadAllPages}</span>
+              </label>
+            </fieldset>
+            <button
+              type="button"
+              className="button primary download-submit"
+              onClick={downloadSelectedPages}
+              disabled={isDownloading}
+            >
+              {isDownloading && <span className="download-spinner" aria-hidden="true" />}
+              {isDownloading ? t.downloading : t.download}
+            </button>
+          </section>
+        </div>
+      )}
 
       {isSettingsOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsSettingsOpen(false)}>

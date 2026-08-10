@@ -4,6 +4,15 @@ import type { EmotionSize, FaceSize, PanelRow, Project, Shape, Size } from "./ty
 
 type RawSheetRow = Record<string, unknown>;
 const STORYBOARD_TEMPLATE_URL = "/templates/storyboard-template.xlsx";
+const exportDpi = 600;
+const millimetersPerInch = 25.4;
+const exportPageWidth = 5196;
+const exportPageHeight = 7322;
+const manuscriptPageWidthMm = 220;
+const manuscriptPageHeightMm = 310;
+const manuscriptInnerWidthMm = 180;
+const manuscriptInnerHeightMm = 270;
+const manuscriptInnerMarginMm = 20;
 
 const headerMap: Record<string, keyof PanelRow | "content"> = {
   page: "pageNumber",
@@ -287,35 +296,45 @@ export async function readSheetRows(file: File): Promise<PanelRow[]> {
 
 export async function exportPagePng(pageEl: HTMLElement, fileName: string) {
   const canvas = renderPageToCanvas(pageEl);
-  const blob = await canvasToBlob(canvas, "image/png");
+  const blob = await canvasToPngBlob(canvas);
   if (blob) downloadBlob(fileName, blob, "image/png");
+}
+
+export async function exportPagesPngZip(pages: { pageEl: HTMLElement; fileName: string }[], zipFileName: string) {
+  if (pages.length === 0) return;
+
+  const fflate = await import("fflate");
+  const archive: Record<string, Uint8Array> = {};
+
+  for (const page of pages) {
+    const canvas = renderPageToCanvas(page.pageEl);
+    const blob = await canvasToPngBlob(canvas);
+    if (!blob) continue;
+    archive[page.fileName] = new Uint8Array(await blob.arrayBuffer());
+  }
+
+  if (Object.keys(archive).length === 0) return;
+  downloadBlob(zipFileName, fflate.zipSync(archive, { level: 6 }), "application/zip");
 }
 
 export async function exportPagesPdf(pageEls: HTMLElement[], fileName: string) {
   if (pageEls.length === 0) return;
 
   const { jsPDF } = await import("jspdf");
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const canvases = pageEls.map(renderPageToCanvas);
+  const firstCanvas = canvases[0];
+  const pdfPageWidth = pixelsToMillimeters(firstCanvas.width);
+  const pdfPageHeight = pixelsToMillimeters(firstCanvas.height);
+  const pdf = new jsPDF({
+    orientation: firstCanvas.width >= firstCanvas.height ? "landscape" : "portrait",
+    unit: "mm",
+    format: [pdfPageWidth, pdfPageHeight],
+  });
 
-  pageEls.forEach((pageEl, index) => {
+  canvases.forEach((canvas, index) => {
     if (index > 0) pdf.addPage();
-    const canvas = renderPageToCanvas(pageEl);
-    const image = canvas.toDataURL("image/png");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 10;
-    const maxWidth = pageWidth - margin * 2;
-    const maxHeight = pageHeight - margin * 2;
-    const imageRatio = canvas.width / canvas.height;
-    let width = maxWidth;
-    let height = width / imageRatio;
-
-    if (height > maxHeight) {
-      height = maxHeight;
-      width = height * imageRatio;
-    }
-
-    pdf.addImage(image, "PNG", (pageWidth - width) / 2, (pageHeight - height) / 2, width, height);
+    const image = canvas.toDataURL("image/jpeg", 0.92);
+    pdf.addImage(image, "JPEG", 0, 0, pdfPageWidth, pdfPageHeight);
   });
 
   pdf.save(fileName);
@@ -323,35 +342,57 @@ export async function exportPagesPdf(pageEls: HTMLElement[], fileName: string) {
 
 function renderPageToCanvas(pageEl: HTMLElement) {
   const rect = pageEl.getBoundingClientRect();
-  const scale = 2;
+  const pageStyle = getComputedStyle(pageEl);
+  const paddingLeft = parseFloat(pageStyle.paddingLeft) || 0;
+  const paddingRight = parseFloat(pageStyle.paddingRight) || 0;
+  const paddingTop = parseFloat(pageStyle.paddingTop) || 0;
+  const paddingBottom = parseFloat(pageStyle.paddingBottom) || 0;
+  const contentLeft = rect.left + paddingLeft;
+  const contentTop = rect.top + paddingTop;
+  const contentWidth = Math.max(rect.width - paddingLeft - paddingRight, 1);
+  const contentHeight = Math.max(rect.height - paddingTop - paddingBottom, 1);
+  const exportInnerX = exportPageWidth * (manuscriptInnerMarginMm / manuscriptPageWidthMm);
+  const exportInnerY = exportPageHeight * (manuscriptInnerMarginMm / manuscriptPageHeightMm);
+  const exportInnerWidth = exportPageWidth * (manuscriptInnerWidthMm / manuscriptPageWidthMm);
+  const exportInnerHeight = exportPageHeight * (manuscriptInnerHeightMm / manuscriptPageHeightMm);
+  const scaleX = exportInnerWidth / contentWidth;
+  const scaleY = exportInnerHeight / contentHeight;
+  const offsetX = exportInnerX / scaleX;
+  const offsetY = exportInnerY / scaleY;
+  const exportLogicalWidth = exportPageWidth / scaleX;
+  const exportLogicalHeight = exportPageHeight / scaleY;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(rect.width * scale);
-  canvas.height = Math.round(rect.height * scale);
+  canvas.width = exportPageWidth;
+  canvas.height = exportPageHeight;
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
 
-  ctx.scale(scale, scale);
-  ctx.fillStyle = "#f7f1e4";
-  ctx.fillRect(0, 0, rect.width, rect.height);
+  ctx.scale(scaleX, scaleY);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width / scaleX, canvas.height / scaleY);
 
   pageEl.querySelectorAll<HTMLElement>(".panel-frame").forEach((panelEl) => {
     const bounds = panelEl.getBoundingClientRect();
-    const x = bounds.left - rect.left;
-    const y = bounds.top - rect.top;
+    const x = bounds.left - contentLeft + offsetX;
+    const y = bounds.top - contentTop + offsetY;
     const width = bounds.width;
     const height = bounds.height;
     const isFrameHidden = panelEl.classList.contains("frame-hidden");
 
-    ctx.fillStyle = "#fffdfa";
+    ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#181611";
     ctx.lineWidth = 2;
     ctx.fillRect(x, y, width, height);
-    if (!isFrameHidden) strokePanelFrame(ctx, panelEl, x, y, width, height);
+    if (!isFrameHidden) {
+      strokePanelFrame(ctx, panelEl, x, y, width, height, exportLogicalWidth, exportLogicalHeight);
+    }
 
     drawExportPanelText(ctx, panelEl, x, y, width, height);
 
     drawFaceSizeMarker(ctx, panelEl, x, y, width, height);
   });
+
+  drawPageSideMark(ctx, pageEl, 0, 0, canvas.width / scaleX, canvas.height / scaleY);
 
   return canvas;
 }
@@ -370,7 +411,15 @@ function drawExportPanelText(
   );
   const content = panelEl.querySelector<HTMLElement>("p[data-export-text]")?.innerText.trim() ?? "";
   const textX = x + padding;
-  const textMaxWidth = Math.max(width - padding * 2, 1);
+  const textY = y + padding;
+  const textWidth = Math.max(width - padding * 2, 1);
+  const textHeight = Math.max(height - padding * 2, 1);
+  const headerBaseline = textY + 18;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(textX, textY, textWidth, textHeight);
+  ctx.clip();
 
   ctx.fillStyle = "#181611";
   ctx.font = "12px sans-serif";
@@ -379,7 +428,7 @@ function drawExportPanelText(
     if (!field) return;
     ctx.font = index === 0 ? "bold 13px sans-serif" : "12px sans-serif";
     if (index === 0) {
-      ctx.fillText(field, textX, y + 18);
+      ctx.fillText(field, textX, headerBaseline);
       return;
     }
 
@@ -395,18 +444,23 @@ function drawExportPanelText(
       totalWidth +
       fieldWidths.slice(0, fieldIndex).reduce((total, value) => total + value + fieldGap, 0);
 
-    ctx.fillText(field, fieldX, y + 18);
+    ctx.fillText(field, fieldX, headerBaseline);
   });
 
-  if (!content) return;
+  if (content) {
+    ctx.font = "12px sans-serif";
+    const lineHeight = 16;
+    const contentMetrics = ctx.measureText("あg");
+    const contentDescent = Math.ceil(contentMetrics.actualBoundingBoxDescent || 3);
+    const maxContentLines = Math.max(Math.floor((textHeight - 28 - contentDescent) / lineHeight), 1);
+    const contentLines = wrapTextLines(ctx, content, textWidth).slice(0, maxContentLines);
+    const contentY = textY + textHeight - contentDescent - (contentLines.length - 1) * lineHeight;
+    contentLines.forEach((line, index) => {
+      ctx.fillText(line, textX, contentY + index * lineHeight);
+    });
+  }
 
-  ctx.font = "12px sans-serif";
-  const contentLines = wrapTextLines(ctx, content, textMaxWidth);
-  const lineHeight = 16;
-  const contentY = y + height - padding - (contentLines.length - 1) * lineHeight;
-  contentLines.forEach((line, index) => {
-    ctx.fillText(line, textX, contentY + index * lineHeight);
-  });
+  ctx.restore();
 }
 
 function drawFaceSizeMarker(
@@ -450,25 +504,101 @@ function strokePanelFrame(
   y: number,
   width: number,
   height: number,
+  pageWidth: number,
+  pageHeight: number,
 ) {
+  const hasTopBleed = panelEl.classList.contains("bleed-edge-top");
+  const hasRightBleed = panelEl.classList.contains("bleed-edge-right");
+  const hasBottomBleed = panelEl.classList.contains("bleed-edge-bottom");
+  const hasLeftBleed = panelEl.classList.contains("bleed-edge-left");
+  const right = x + width;
+  const bottom = y + height;
+
   ctx.beginPath();
-  if (!panelEl.classList.contains("bleed-edge-top")) {
+  if (!hasTopBleed) {
     ctx.moveTo(x, y);
-    ctx.lineTo(x + width, y);
+    ctx.lineTo(right, y);
   }
-  if (!panelEl.classList.contains("bleed-edge-right")) {
-    ctx.moveTo(x + width, y);
-    ctx.lineTo(x + width, y + height);
+  if (!hasRightBleed) {
+    ctx.moveTo(right, y);
+    ctx.lineTo(right, bottom);
   }
-  if (!panelEl.classList.contains("bleed-edge-bottom")) {
-    ctx.moveTo(x + width, y + height);
-    ctx.lineTo(x, y + height);
+  if (!hasBottomBleed) {
+    ctx.moveTo(right, bottom);
+    ctx.lineTo(x, bottom);
   }
-  if (!panelEl.classList.contains("bleed-edge-left")) {
-    ctx.moveTo(x, y + height);
+  if (!hasLeftBleed) {
+    ctx.moveTo(x, bottom);
     ctx.lineTo(x, y);
   }
+
+  if (hasTopBleed) {
+    if (!hasLeftBleed) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, y);
+    }
+    if (!hasRightBleed) {
+      ctx.moveTo(right, 0);
+      ctx.lineTo(right, y);
+    }
+  }
+  if (hasRightBleed) {
+    if (!hasTopBleed) {
+      ctx.moveTo(right, y);
+      ctx.lineTo(pageWidth, y);
+    }
+    if (!hasBottomBleed) {
+      ctx.moveTo(right, bottom);
+      ctx.lineTo(pageWidth, bottom);
+    }
+  }
+  if (hasBottomBleed) {
+    if (!hasRightBleed) {
+      ctx.moveTo(right, bottom);
+      ctx.lineTo(right, pageHeight);
+    }
+    if (!hasLeftBleed) {
+      ctx.moveTo(x, bottom);
+      ctx.lineTo(x, pageHeight);
+    }
+  }
+  if (hasLeftBleed) {
+    if (!hasBottomBleed) {
+      ctx.moveTo(0, bottom);
+      ctx.lineTo(x, bottom);
+    }
+    if (!hasTopBleed) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(x, y);
+    }
+  }
+
   ctx.stroke();
+}
+
+function drawPageSideMark(
+  ctx: CanvasRenderingContext2D,
+  pageEl: HTMLElement,
+  offsetX: number,
+  offsetY: number,
+  width: number,
+  height: number,
+) {
+  const isRight = pageEl.classList.contains("side-mark-right");
+  const centerX = offsetX + (isRight ? width - 20 : 20);
+  const centerY = offsetY + height / 2;
+  const radius = 13;
+
+  ctx.save();
+  ctx.strokeStyle = "#181611";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(centerX - radius, centerY - radius);
+  ctx.lineTo(centerX + radius, centerY + radius);
+  ctx.moveTo(centerX + radius, centerY - radius);
+  ctx.lineTo(centerX - radius, centerY + radius);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function rowsFromTable(table: string[][]): PanelRow[] {
@@ -673,6 +803,94 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string) {
   return new Promise<Blob | null>((resolve) => {
     canvas.toBlob((blob) => resolve(blob), type);
   });
+}
+
+async function canvasToPngBlob(canvas: HTMLCanvasElement) {
+  const blob = await canvasToBlob(canvas, "image/png");
+  if (!blob) return null;
+  return new Blob([addPngDpiMetadata(new Uint8Array(await blob.arrayBuffer()), exportDpi)], { type: "image/png" });
+}
+
+function pixelsToMillimeters(pixels: number) {
+  return (pixels / exportDpi) * millimetersPerInch;
+}
+
+function addPngDpiMetadata(png: Uint8Array, dpi: number) {
+  const pixelsPerMeter = Math.round(dpi / 0.0254);
+  const chunkData = new Uint8Array(9);
+  writeUint32(chunkData, 0, pixelsPerMeter);
+  writeUint32(chunkData, 4, pixelsPerMeter);
+  chunkData[8] = 1;
+
+  const chunk = createPngChunk("pHYs", chunkData);
+  const withoutPhys = removePngChunk(png, "pHYs");
+  const output = new Uint8Array(withoutPhys.length + chunk.length);
+  output.set(withoutPhys.slice(0, 33), 0);
+  output.set(chunk, 33);
+  output.set(withoutPhys.slice(33), 33 + chunk.length);
+  return output;
+}
+
+function removePngChunk(png: Uint8Array, chunkType: string) {
+  const chunks: Uint8Array[] = [png.slice(0, 8)];
+  let offset = 8;
+
+  while (offset < png.length) {
+    const length = readUint32(png, offset);
+    const type = bytesToString(png.slice(offset + 4, offset + 8));
+    const nextOffset = offset + 12 + length;
+    if (type !== chunkType) chunks.push(png.slice(offset, nextOffset));
+    offset = nextOffset;
+  }
+
+  const totalLength = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const output = new Uint8Array(totalLength);
+  let cursor = 0;
+  chunks.forEach((chunk) => {
+    output.set(chunk, cursor);
+    cursor += chunk.length;
+  });
+  return output;
+}
+
+function createPngChunk(type: string, data: Uint8Array) {
+  const typeBytes = stringToBytes(type);
+  const chunk = new Uint8Array(12 + data.length);
+  writeUint32(chunk, 0, data.length);
+  chunk.set(typeBytes, 4);
+  chunk.set(data, 8);
+  writeUint32(chunk, 8 + data.length, crc32(chunk.slice(4, 8 + data.length)));
+  return chunk;
+}
+
+function readUint32(bytes: Uint8Array, offset: number) {
+  return ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+}
+
+function writeUint32(bytes: Uint8Array, offset: number, value: number) {
+  bytes[offset] = (value >>> 24) & 0xff;
+  bytes[offset + 1] = (value >>> 16) & 0xff;
+  bytes[offset + 2] = (value >>> 8) & 0xff;
+  bytes[offset + 3] = value & 0xff;
+}
+
+function stringToBytes(value: string) {
+  return Uint8Array.from(Array.from(value).map((char) => char.charCodeAt(0)));
+}
+
+function bytesToString(bytes: Uint8Array) {
+  return String.fromCharCode(...bytes);
+}
+
+function crc32(bytes: Uint8Array) {
+  let crc = 0xffffffff;
+  bytes.forEach((byte) => {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+  });
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
