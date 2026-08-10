@@ -121,6 +121,13 @@ export function App() {
     });
   }
 
+  function togglePanelFrame(id: string) {
+    setStatus(t.edited);
+    setRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, isFrameHidden: !row.isFrameHidden } : row)).map(normalizeOrder),
+    );
+  }
+
   function duplicateRow(id: string) {
     setStatus(t.edited);
     setRows((current) => {
@@ -605,6 +612,7 @@ export function App() {
                 rowWidths={project.rowWidths?.[activeLayout.pageNumber]}
                 selectedPanelId={selectedRowId}
                 onPanelSelect={selectRow}
+                onPanelFrameToggle={togglePanelFrame}
                 onRowResize={(nextHeights) => updateRowHeights(activeLayout.pageNumber, nextHeights)}
                 onColumnResize={(rowIndex, nextWidths) => updateRowWidths(activeLayout.pageNumber, rowIndex, nextWidths)}
                 register={(node) => {
@@ -645,6 +653,7 @@ function PagePreview({
   rowWidths,
   selectedPanelId,
   onPanelSelect,
+  onPanelFrameToggle,
   onRowResize,
   onColumnResize,
   register,
@@ -655,6 +664,7 @@ function PagePreview({
   rowWidths?: number[][];
   selectedPanelId: string | null;
   onPanelSelect: (id: string, pageNumber: number) => void;
+  onPanelFrameToggle: (id: string) => void;
   onRowResize: (nextHeights: number[]) => void;
   onColumnResize: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
@@ -668,6 +678,7 @@ function PagePreview({
         rowWidths={rowWidths}
         selectedPanelId={selectedPanelId}
         onPanelSelect={onPanelSelect}
+        onPanelFrameToggle={onPanelFrameToggle}
         onRowResize={onRowResize}
         onColumnResize={onColumnResize}
         register={register}
@@ -683,6 +694,7 @@ function PageCanvas({
   rowWidths,
   selectedPanelId,
   onPanelSelect,
+  onPanelFrameToggle,
   onRowResize,
   onColumnResize,
   register,
@@ -693,6 +705,7 @@ function PageCanvas({
   rowWidths?: number[][];
   selectedPanelId?: string | null;
   onPanelSelect?: (id: string, pageNumber: number) => void;
+  onPanelFrameToggle?: (id: string) => void;
   onRowResize?: (nextHeights: number[]) => void;
   onColumnResize?: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
@@ -805,9 +818,12 @@ function PageCanvas({
           {row.panels.map((panel) => (
             <article
               key={panel.id}
-              className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""}`}
+              className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""} ${
+                panel.isFrameHidden ? "frame-hidden" : ""
+              }`}
               style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }}
               onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
+              onDoubleClick={() => onPanelFrameToggle?.(panel.id)}
             >
               <div className="panel-number" data-export-text>
                 {panel.visualNumber}
@@ -833,8 +849,11 @@ function PageCanvas({
                 {stack.panels.map((panel) => (
                   <article
                     key={panel.id}
-                    className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""}`}
+                    className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""} ${
+                      panel.isFrameHidden ? "frame-hidden" : ""
+                    }`}
                     onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
+                    onDoubleClick={() => onPanelFrameToggle?.(panel.id)}
                   >
                     <div className="panel-number" data-export-text>
                       {panel.visualNumber}
@@ -910,7 +929,11 @@ function MiniPage({
             style={{ gridTemplateColumns: normalizedRowWidths[rowIndex].map((weight) => `${weight}fr`).join(" ") }}
           >
             {row.panels.map((panel) => (
-              <span key={panel.id} style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }} />
+              <span
+                key={panel.id}
+                className={panel.isFrameHidden ? "frame-hidden" : ""}
+                style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }}
+              />
             ))}
             {row.stacks?.map((stack, stackIndex) => (
               <span
@@ -919,7 +942,7 @@ function MiniPage({
                 style={{ gridColumn: `${stack.colStart} / span ${stack.colSpan}`, gridRow: 1 }}
               >
                 {stack.panels.map((panel) => (
-                  <i key={panel.id} />
+                  <i key={panel.id} className={panel.isFrameHidden ? "frame-hidden" : ""} />
                 ))}
               </span>
             ))}

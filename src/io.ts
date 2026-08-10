@@ -333,12 +333,13 @@ function renderPageToCanvas(pageEl: HTMLElement) {
     const y = bounds.top - rect.top;
     const width = bounds.width;
     const height = bounds.height;
+    const isFrameHidden = panelEl.classList.contains("frame-hidden");
 
     ctx.fillStyle = "#fffdfa";
     ctx.strokeStyle = "#181611";
     ctx.lineWidth = 2;
     ctx.fillRect(x, y, width, height);
-    ctx.strokeRect(x, y, width, height);
+    if (!isFrameHidden) ctx.strokeRect(x, y, width, height);
 
     const lines = Array.from(panelEl.querySelectorAll<HTMLElement>("[data-export-text]")).map((node) =>
       node.innerText.trim(),

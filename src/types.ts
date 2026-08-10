@@ -11,6 +11,7 @@ export type Panel = {
   shape: Shape;
   camera: string;
   content: string;
+  isFrameHidden?: boolean;
   order: number;
 };
 
