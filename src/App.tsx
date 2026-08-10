@@ -1012,9 +1012,6 @@ function PanelArticle({
       onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
       onDoubleClick={() => onPanelFrameToggle?.(panel.id)}
     >
-      <div className="panel-number" data-export-text>
-        {panel.visualNumber}
-      </div>
       {panel.faceSize !== "none" && (
         <span
           className={`face-size-marker ${faceSizeMarkerClass(panel.faceSize)}`}
@@ -1022,16 +1019,13 @@ function PanelArticle({
           aria-hidden="true"
         />
       )}
-      <div className="panel-meta" data-export-text>
-        {sizeLabel[panel.panelSize]}{t.panelSeparator}{shapeLabel[panel.shape]}
-        {panel.camera ? `${t.panelSeparator}${panel.camera}` : ""}
-        {panel.faceSize !== "none" ? `${t.panelSeparator}${faceSizeLabel[panel.faceSize]}` : ""}
+      <div className="panel-fields" data-export-text>
+        <span className="panel-field-number" title="No.">
+          {panel.visualNumber}
+        </span>
+        <span title={t.role}>{panel.role || "-"}</span>
+        <span title={t.camera}>{panel.camera || "-"}</span>
       </div>
-      {panel.role && (
-        <div className="panel-role" data-export-text>
-          {panel.role}
-        </div>
-      )}
       <p data-export-text>{panel.content}</p>
       {canEditPanelBleed && isSelected && (
         <div className="bleed-controls" onClick={(event) => event.stopPropagation()}>
@@ -1076,8 +1070,7 @@ function MiniPage({
   return (
     <div className={`mini-page side-mark-${sideMarkPosition}`}>
       <div className="mini-side-mark" aria-hidden="true">
-        <span />
-        <span />
+        ×
       </div>
       {layout.rows.map((row, rowIndex) => (
         <div className="mini-row-group" key={rowIndex} style={{ flex: `${normalizedRowHeights[rowIndex]} 1 0` }}>

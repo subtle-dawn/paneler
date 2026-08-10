@@ -348,21 +348,65 @@ function renderPageToCanvas(pageEl: HTMLElement) {
     ctx.fillRect(x, y, width, height);
     if (!isFrameHidden) strokePanelFrame(ctx, panelEl, x, y, width, height);
 
-    const lines = Array.from(panelEl.querySelectorAll<HTMLElement>("[data-export-text]")).map((node) =>
-      node.innerText.trim(),
-    );
-    ctx.fillStyle = "#181611";
-    ctx.font = "12px sans-serif";
-    let lineY = y + 18;
-    lines.forEach((line) => {
-      wrapText(ctx, line, x + 10, lineY, width - 20, 16);
-      lineY += Math.max(16, Math.ceil(ctx.measureText(line).width / Math.max(width - 20, 1)) * 16);
-    });
+    drawExportPanelText(ctx, panelEl, x, y, width, height);
 
     drawFaceSizeMarker(ctx, panelEl, x, y, width, height);
   });
 
   return canvas;
+}
+
+function drawExportPanelText(
+  ctx: CanvasRenderingContext2D,
+  panelEl: HTMLElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  const padding = 10;
+  const fields = Array.from(panelEl.querySelectorAll<HTMLElement>(".panel-fields span")).map((node) =>
+    node.innerText.trim(),
+  );
+  const content = panelEl.querySelector<HTMLElement>("p[data-export-text]")?.innerText.trim() ?? "";
+  const textX = x + padding;
+  const textMaxWidth = Math.max(width - padding * 2, 1);
+
+  ctx.fillStyle = "#181611";
+  ctx.font = "12px sans-serif";
+
+  fields.forEach((field, index) => {
+    if (!field) return;
+    ctx.font = index === 0 ? "bold 13px sans-serif" : "12px sans-serif";
+    if (index === 0) {
+      ctx.fillText(field, textX, y + 18);
+      return;
+    }
+
+    const rightAlignedFields = fields.slice(1).filter(Boolean);
+    const fieldIndex = index - 1;
+    const fieldGap = 8;
+    const fieldWidths = rightAlignedFields.map((value) => ctx.measureText(value).width);
+    const totalWidth = fieldWidths.reduce((total, value) => total + value, 0) + fieldGap * Math.max(0, rightAlignedFields.length - 1);
+    const fieldX =
+      x +
+      width -
+      padding -
+      totalWidth +
+      fieldWidths.slice(0, fieldIndex).reduce((total, value) => total + value + fieldGap, 0);
+
+    ctx.fillText(field, fieldX, y + 18);
+  });
+
+  if (!content) return;
+
+  ctx.font = "12px sans-serif";
+  const contentLines = wrapTextLines(ctx, content, textMaxWidth);
+  const lineHeight = 16;
+  const contentY = y + height - padding - (contentLines.length - 1) * lineHeight;
+  contentLines.forEach((line, index) => {
+    ctx.fillText(line, textX, contentY + index * lineHeight);
+  });
 }
 
 function drawFaceSizeMarker(
@@ -631,17 +675,20 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string) {
   });
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
+function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const lines: string[] = [];
   let line = "";
+
   Array.from(text).forEach((char) => {
     const testLine = line + char;
     if (ctx.measureText(testLine).width > maxWidth && line) {
-      ctx.fillText(line, x, y);
+      lines.push(line);
       line = char;
-      y += lineHeight;
     } else {
       line = testLine;
     }
   });
-  if (line) ctx.fillText(line, x, y);
+
+  if (line) lines.push(line);
+  return lines;
 }
