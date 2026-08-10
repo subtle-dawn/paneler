@@ -14,7 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { emotionLabel, shapeLabel, sizeLabel, t } from "./i18n";
+import { emotionLabel, faceSizeLabel, shapeLabel, sizeLabel, t } from "./i18n";
 import {
   downloadJson,
   downloadStoryboardXlsx,
@@ -25,13 +25,14 @@ import {
 } from "./io";
 import { rowsToLayouts } from "./layout";
 import { createDefaultProject, createPanelRow, loadProject, projectToRows, rowsToProject, saveProject } from "./storage";
-import type { BleedSide, EmotionSize, LayoutPanel, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
+import type { BleedSide, EmotionSize, FaceSize, LayoutPanel, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
 
 const sizeOptions: Size[] = ["extraSmall", "small", "medium", "large", "extraLarge", "fullPage"];
 const shapeOptions: Shape[] = ["square", "vertical", "horizontal"];
 const emotionOptions = ["small", "medium", "large"] as const;
+const faceSizeOptions: FaceSize[] = ["none", "extraSmall", "small", "medium", "large", "extraLarge"];
 const roleOptions = ["ー", "場", "時", "魅", "予"] as const;
-const cameraOptions = ["正", "俯", "煽", "横", "上", "下", "引", "寄"] as const;
+const cameraOptions = ["正", "俯", "煽", "横", "上", "下"] as const;
 const minRowHeightWeight = 0.25;
 const minColumnWidthWeight = 0.25;
 const horizontalRowHeightWeight = 0.6;
@@ -67,6 +68,7 @@ export function App() {
     () => rows.filter((row) => row.pageNumber === activePage).sort((a, b) => a.order - b.order),
     [activePage, rows],
   );
+  const columnWarnings = useMemo(() => getColumnWarnings(activeRows), [activeRows]);
 
   useEffect(() => {
     saveProject(syncedProject);
@@ -516,10 +518,11 @@ export function App() {
                 <tr>
                   <th>No.</th>
                   <th>{t.emotion}</th>
-                  <th>{t.size}</th>
-                  <th>{t.role}</th>
+                  <th><HeaderLabel label={t.size} warning={columnWarnings.panelSize} /></th>
+                  <th><HeaderLabel label={t.role} warning={columnWarnings.role} /></th>
                   <th>{t.shape}</th>
-                  <th>{t.camera}</th>
+                  <th><HeaderLabel label={t.camera} warning={columnWarnings.camera} /></th>
+                  <th><HeaderLabel label={t.faceSize} warning={columnWarnings.faceSize} /></th>
                   <th>{t.content}</th>
                   <th aria-label="actions" />
                 </tr>
@@ -615,6 +618,19 @@ export function App() {
                             {cameraOptions.map((value) => (
                               <option key={value} value={value}>
                                 {value}
+                              </option>
+                            ))}
+                          </SelectCell>
+                        </td>
+                        <td>
+                          <SelectCell
+                            value={row.faceSize ?? "medium"}
+                            warning={row.warnings?.faceSize}
+                            onChange={(value) => updateRow(row.id, { faceSize: value as FaceSize })}
+                          >
+                            {faceSizeOptions.map((value) => (
+                              <option key={value} value={value}>
+                                {faceSizeLabel[value]}
                               </option>
                             ))}
                           </SelectCell>
@@ -985,9 +1001,17 @@ function PanelArticle({
       <div className="panel-number" data-export-text>
         {panel.visualNumber}
       </div>
+      {panel.faceSize !== "none" && (
+        <span
+          className={`face-size-marker ${faceSizeMarkerClass(panel.faceSize)}`}
+          data-face-size={panel.faceSize}
+          aria-hidden="true"
+        />
+      )}
       <div className="panel-meta" data-export-text>
         {sizeLabel[panel.panelSize]}{t.panelSeparator}{shapeLabel[panel.shape]}
         {panel.camera ? `${t.panelSeparator}${panel.camera}` : ""}
+        {panel.faceSize !== "none" ? `${t.panelSeparator}${faceSizeLabel[panel.faceSize]}` : ""}
       </div>
       {panel.role && (
         <div className="panel-role" data-export-text>
@@ -1064,7 +1088,11 @@ function MiniPage({
                       allowedBleedSides,
                     ),
                   }}
-                />
+                >
+                  {panel.faceSize !== "none" && (
+                    <b className={`mini-face-size-marker ${faceSizeMarkerClass(panel.faceSize)}`} aria-hidden="true" />
+                  )}
+                </span>
               );
             })}
             {row.stacks?.map((stack, stackIndex) => (
@@ -1092,7 +1120,11 @@ function MiniPage({
                         miniPageBorderBleedAmount,
                         allowedBleedSides,
                       )}
-                    />
+                    >
+                      {panel.faceSize !== "none" && (
+                        <b className={`mini-face-size-marker ${faceSizeMarkerClass(panel.faceSize)}`} aria-hidden="true" />
+                      )}
+                    </i>
                   );
                 })}
               </span>
@@ -1126,6 +1158,87 @@ function SelectCell({
   );
 }
 
+function HeaderLabel({ label, warning }: { label: string; warning?: string }) {
+  return (
+    <span className="column-heading">
+      {label}
+      {warning && <WarningBadge warning={warning} />}
+    </span>
+  );
+}
+
+function WarningBadge({ warning }: { warning: string }) {
+  const badgeRef = useRef<HTMLSpanElement>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null);
+
+  function showTooltip() {
+    const rect = badgeRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltipPosition({
+      left: rect.left + rect.width / 2,
+      top: rect.top - 8,
+    });
+  }
+
+  return (
+    <>
+      <span
+        ref={badgeRef}
+        className="column-warning"
+        aria-label={warning}
+        onBlur={() => setTooltipPosition(null)}
+        onFocus={showTooltip}
+        onMouseEnter={showTooltip}
+        onMouseLeave={() => setTooltipPosition(null)}
+        tabIndex={0}
+      >
+        !
+      </span>
+      {tooltipPosition && (
+        <span
+          className="column-warning-tooltip"
+          role="tooltip"
+          style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
+        >
+          {warning}
+        </span>
+      )}
+    </>
+  );
+}
+
+function getColumnWarnings(rows: PanelRow[]) {
+  return {
+    panelSize: needsSizeVariation(rows.map((row) => row.panelSize)) ? "単調です" : undefined,
+    role: roleWarnings(rows),
+    camera: rows.length > 0 && rows.every((row) => row.camera === "正") ? "単調です" : undefined,
+    faceSize: needsFaceSizeVariation(rows.map((row) => row.faceSize)) ? "単調です" : undefined,
+  };
+}
+
+function needsSizeVariation(values: Size[]) {
+  if (values.length === 0) return false;
+  const hasSmall = values.some((value) => value === "extraSmall" || value === "small");
+  const hasLarge = values.some((value) => value === "large" || value === "extraLarge");
+  return !hasSmall || !hasLarge;
+}
+
+function needsFaceSizeVariation(values: FaceSize[]) {
+  const visibleValues = values.filter((value) => value !== "none");
+  if (visibleValues.length === 0) return false;
+  const hasSmall = visibleValues.some((value) => value === "extraSmall" || value === "small");
+  const hasLarge = visibleValues.some((value) => value === "large" || value === "extraLarge");
+  return !hasSmall || !hasLarge;
+}
+
+function roleWarnings(rows: PanelRow[]) {
+  const warnings: string[] = [];
+  if (rows.length === 0) return undefined;
+  if (!rows.some((row) => row.role.includes("場"))) warnings.push("場所がわかりません");
+  if (!rows.some((row) => row.role.includes("魅"))) warnings.push("魅せゴマがありません");
+  return warnings.length ? warnings.join("\n") : undefined;
+}
+
 function normalizeOrder<T extends PanelRow>(row: T, order: number): T {
   return { ...row, order };
 }
@@ -1134,8 +1247,13 @@ function normalizeChoiceDefaults<T extends PanelRow>(row: T): T {
   return {
     ...row,
     emotionSize: row.emotionSize ?? "small",
-    camera: row.camera || cameraOptions[0],
+    camera: cameraOptions.includes(row.camera as (typeof cameraOptions)[number]) ? row.camera : cameraOptions[0],
+    faceSize: row.faceSize ?? "medium",
   };
+}
+
+function faceSizeMarkerClass(faceSize: FaceSize) {
+  return `face-size-${faceSize.toLowerCase()}`;
 }
 
 function normalizeRowHeights(rowHeights: number[] | undefined, rows: LayoutRow[]) {

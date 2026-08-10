@@ -1,6 +1,6 @@
-import { sizeLabel, shapeLabel } from "./i18n";
+import { faceSizeLabel, sizeLabel, shapeLabel } from "./i18n";
 import { createId, createPanelRow } from "./storage";
-import type { EmotionSize, PanelRow, Project, Shape, Size } from "./types";
+import type { EmotionSize, FaceSize, PanelRow, Project, Shape, Size } from "./types";
 
 type RawSheetRow = Record<string, unknown>;
 const STORYBOARD_TEMPLATE_URL = "/templates/storyboard-template.xlsx";
@@ -22,6 +22,10 @@ const headerMap: Record<string, keyof PanelRow | "content"> = {
   形: "shape",
   camera: "camera",
   カメラ: "camera",
+  facesize: "faceSize",
+  "face size": "faceSize",
+  顔サイズ: "faceSize",
+  顔の大きさ: "faceSize",
   content: "content",
   内容: "content",
   本文: "content",
@@ -44,13 +48,13 @@ export async function downloadStoryboardXlsx(rows: PanelRow[], title: string) {
 async function downloadStoryboardXlsxLegacy(rows: PanelRow[], title: string) {
   const xlsx = await import("xlsx");
   const sorted = rows.slice().sort((a, b) => a.pageNumber - b.pageNumber || a.order - b.order);
-  const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "内容"]];
+  const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "顔サイズ", "内容"]];
   let currentPage = 0;
 
   sorted.forEach((row) => {
     if (row.pageNumber !== currentPage) {
       currentPage = row.pageNumber;
-      table.push([`${currentPage}ページ目`, pageSideLabel(currentPage), "", "", "", ""]);
+      table.push([`${currentPage}ページ目`, pageSideLabel(currentPage), "", "", "", "", ""]);
     }
 
     table.push([
@@ -59,12 +63,13 @@ async function downloadStoryboardXlsxLegacy(rows: PanelRow[], title: string) {
       row.role,
       shapeLabel[row.shape],
       normalizeCameraForExport(row.camera),
+      faceSizeLabel[row.faceSize],
       row.content,
     ]);
   });
 
   const worksheet = xlsx.utils.aoa_to_sheet(table);
-  worksheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 64 }];
+  worksheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 64 }];
   const workbook = xlsx.utils.book_new();
   xlsx.utils.book_append_sheet(workbook, worksheet, "文字ネーム");
   xlsx.writeFile(workbook, `${safeFileName(title)}_文字ネーム.xlsx`);
@@ -72,13 +77,13 @@ async function downloadStoryboardXlsxLegacy(rows: PanelRow[], title: string) {
 
 function storyboardRowsForExport(rows: PanelRow[]) {
   const sorted = rows.slice().sort((a, b) => a.pageNumber - b.pageNumber || a.order - b.order);
-  const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "内容"]];
+  const table: string[][] = [["感情", "大きさ", "役割", "形", "カメラ", "顔サイズ", "内容"]];
   let currentPage = 0;
 
   sorted.forEach((row) => {
     if (row.pageNumber !== currentPage) {
       currentPage = row.pageNumber;
-      table.push([`${currentPage}ページ目`, pageSideLabel(currentPage), "", "", "", ""]);
+      table.push([`${currentPage}ページ目`, pageSideLabel(currentPage), "", "", "", "", ""]);
     }
 
     table.push([
@@ -87,6 +92,7 @@ function storyboardRowsForExport(rows: PanelRow[]) {
       row.role,
       shapeLabel[row.shape],
       row.camera,
+      faceSizeLabel[row.faceSize],
       row.content,
     ]);
   });
@@ -130,8 +136,8 @@ function replaceSheetData(sheetXml: string, table: string[][]) {
   const contentColumnWidth = calculateContentColumnWidth(table);
 
   const nextSheetXml = sheetXml
-    .replace(/<dimension ref="[^"]*"\s*\/>/, `<dimension ref="A1:F${maxRow}"/>`)
-    .replace(/<col min="6" max="6"[^>]*\/>/, `<col min="6" max="6" width="${contentColumnWidth}" style="3" customWidth="1"/>`)
+    .replace(/<dimension ref="[^"]*"\s*\/>/, `<dimension ref="A1:G${maxRow}"/>`)
+    .replace(/<col min="7" max="7"[^>]*\/>/, `<col min="7" max="7" width="${contentColumnWidth}" style="3" customWidth="1"/>`)
     .replace(/<sheetData>[\s\S]*?<\/sheetData>/, sheetData);
 
   return nextSheetXml;
@@ -139,20 +145,20 @@ function replaceSheetData(sheetXml: string, table: string[][]) {
 
 function storyboardConditionalFormattingXml() {
   return [
-    `<conditionalFormatting sqref="B1:B1048576"><cfRule type="cellIs" dxfId="16" priority="1" operator="equal"><formula>"極大"</formula></cfRule><cfRule type="cellIs" dxfId="20" priority="2" operator="equal"><formula>"極小"</formula></cfRule></conditionalFormatting>`,
-    `<conditionalFormatting sqref="E1:E1048576"><cfRule type="cellIs" dxfId="23" priority="3" operator="equal"><formula>"下"</formula></cfRule><cfRule type="cellIs" dxfId="23" priority="4" operator="equal"><formula>"上"</formula></cfRule><cfRule type="cellIs" dxfId="23" priority="7" operator="equal"><formula>"寄"</formula></cfRule><cfRule type="cellIs" dxfId="23" priority="11" operator="equal"><formula>"引"</formula></cfRule><cfRule type="cellIs" dxfId="22" priority="12" operator="equal"><formula>"煽"</formula></cfRule><cfRule type="cellIs" dxfId="21" priority="13" operator="equal"><formula>"俯"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="B1:B1048576 F1:F1048576"><cfRule type="cellIs" dxfId="16" priority="1" operator="equal"><formula>"極大"</formula></cfRule><cfRule type="cellIs" dxfId="20" priority="2" operator="equal"><formula>"極小"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="E1:F1048576"><cfRule type="cellIs" dxfId="23" priority="3" operator="equal"><formula>"下"</formula></cfRule><cfRule type="cellIs" dxfId="23" priority="4" operator="equal"><formula>"上"</formula></cfRule><cfRule type="cellIs" dxfId="22" priority="12" operator="equal"><formula>"煽"</formula></cfRule><cfRule type="cellIs" dxfId="21" priority="13" operator="equal"><formula>"俯"</formula></cfRule></conditionalFormatting>`,
     `<conditionalFormatting sqref="C1:C1048576"><cfRule type="cellIs" dxfId="32" priority="5" operator="equal"><formula>"場、時"</formula></cfRule><cfRule type="cellIs" dxfId="31" priority="6" operator="equal"><formula>"時"</formula></cfRule><cfRule type="cellIs" dxfId="30" priority="14" operator="equal"><formula>"予"</formula></cfRule><cfRule type="containsText" dxfId="29" priority="15" operator="containsText" text="魅"><formula>NOT(ISERROR(SEARCH("魅",C1)))</formula></cfRule><cfRule type="cellIs" dxfId="28" priority="16" operator="equal"><formula>"場"</formula></cfRule></conditionalFormatting>`,
-    `<conditionalFormatting sqref="D1:E1048576"><cfRule type="cellIs" dxfId="26" priority="8" operator="equal"><formula>"正"</formula></cfRule><cfRule type="cellIs" dxfId="25" priority="9" operator="equal"><formula>"横"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="D1:F1048576"><cfRule type="cellIs" dxfId="26" priority="8" operator="equal"><formula>"正"</formula></cfRule><cfRule type="cellIs" dxfId="25" priority="9" operator="equal"><formula>"横"</formula></cfRule></conditionalFormatting>`,
     `<conditionalFormatting sqref="D1:D1048576"><cfRule type="cellIs" dxfId="27" priority="10" operator="equal"><formula>"縦"</formula></cfRule></conditionalFormatting>`,
-    `<conditionalFormatting sqref="A1:B1048576"><cfRule type="cellIs" dxfId="19" priority="17" operator="equal"><formula>"小"</formula></cfRule><cfRule type="cellIs" dxfId="18" priority="18" operator="equal"><formula>"中"</formula></cfRule><cfRule type="cellIs" dxfId="17" priority="19" operator="equal"><formula>"大"</formula></cfRule></conditionalFormatting>`,
-    `<conditionalFormatting sqref="A1:F1048576"><cfRule type="expression" dxfId="33" priority="20"><formula>IF($F1="",TRUE)</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="A1:B1048576 F1:F1048576"><cfRule type="cellIs" dxfId="19" priority="17" operator="equal"><formula>"小"</formula></cfRule><cfRule type="cellIs" dxfId="18" priority="18" operator="equal"><formula>"中"</formula></cfRule><cfRule type="cellIs" dxfId="17" priority="19" operator="equal"><formula>"大"</formula></cfRule></conditionalFormatting>`,
+    `<conditionalFormatting sqref="A1:G1048576"><cfRule type="expression" dxfId="33" priority="20"><formula>IF($G1="",TRUE)</formula></cfRule></conditionalFormatting>`,
   ].join("");
 }
 
 function calculateContentColumnWidth(table: string[][]) {
   const maxLength = Math.max(
     8,
-    ...table.slice(1).map((cells) => stringDisplayWidth(cells[5] ?? "")),
+    ...table.slice(1).map((cells) => stringDisplayWidth(cells[6] ?? "")),
   );
 
   return Math.min(Math.ceil(maxLength * 1.15 + 2), 120);
@@ -166,9 +172,9 @@ function storyboardXmlRow(cells: string[], rowIndex: number) {
   const rowNumber = rowIndex + 1;
   const isHeader = rowIndex === 0;
   const isPageRow = rowIndex > 0 && (cells[0] ?? "").endsWith("ページ目");
-  const rowAttributes = isPageRow ? ` r="${rowNumber}" spans="1:6" s="5" customFormat="1"` : ` r="${rowNumber}" spans="1:6"`;
+  const rowAttributes = isPageRow ? ` r="${rowNumber}" spans="1:7" s="5" customFormat="1"` : ` r="${rowNumber}" spans="1:7"`;
 
-  return `<row${rowAttributes}>${Array.from({ length: 6 }, (_, colIndex) =>
+  return `<row${rowAttributes}>${Array.from({ length: 7 }, (_, colIndex) =>
     storyboardXmlCell(cells[colIndex] ?? "", rowNumber, colIndex, isHeader, isPageRow),
   ).join("")}</row>`;
 }
@@ -191,7 +197,7 @@ function escapeXml(value: string) {
 }
 
 function normalizeCameraForExport(value: string) {
-  return value.trim() === "アップ" ? "寄" : value;
+  return value;
 }
 
 function writeStoryboardRowsToTemplate(
@@ -204,7 +210,7 @@ function writeStoryboardRowsToTemplate(
   const maxRows = Math.max(table.length, rangeEndRow(worksheet));
 
   for (let rowIndex = 1; rowIndex <= maxRows; rowIndex += 1) {
-    for (let colIndex = 0; colIndex < 6; colIndex += 1) {
+    for (let colIndex = 0; colIndex < 7; colIndex += 1) {
       const address = xlsx.utils.encode_cell({ r: rowIndex, c: colIndex });
       delete worksheet[address];
     }
@@ -224,12 +230,12 @@ function writeStoryboardRowsToTemplate(
 
   worksheet["!ref"] = xlsx.utils.encode_range({
     s: { r: 0, c: 0 },
-    e: { r: Math.max(table.length - 1, 0), c: 5 },
+    e: { r: Math.max(table.length - 1, 0), c: 6 },
   });
 }
 
 function getRowStyles(worksheet: import("xlsx").WorkSheet, rowNumber: number) {
-  return Array.from({ length: 6 }, (_, colIndex) => {
+  return Array.from({ length: 7 }, (_, colIndex) => {
     const address = String.fromCharCode(65 + colIndex) + rowNumber;
     return worksheet[address]?.s;
   });
@@ -244,7 +250,7 @@ function rangeEndRow(worksheet: import("xlsx").WorkSheet) {
 
 export function downloadCsv(rows: PanelRow[], title: string) {
   const csvRows = [
-    ["ページ", "感情", "大きさ", "役割", "形", "カメラ", "内容"],
+    ["ページ", "感情", "大きさ", "役割", "形", "カメラ", "顔サイズ", "内容"],
     ...rows.map((row) => [
       String(row.pageNumber),
       row.emotionSize ? sizeLabel[row.emotionSize] : "なし",
@@ -252,6 +258,7 @@ export function downloadCsv(rows: PanelRow[], title: string) {
       row.role,
       shapeLabel[row.shape],
       row.camera,
+      faceSizeLabel[row.faceSize],
       row.content,
     ]),
   ];
@@ -351,9 +358,45 @@ function renderPageToCanvas(pageEl: HTMLElement) {
       wrapText(ctx, line, x + 10, lineY, width - 20, 16);
       lineY += Math.max(16, Math.ceil(ctx.measureText(line).width / Math.max(width - 20, 1)) * 16);
     });
+
+    drawFaceSizeMarker(ctx, panelEl, x, y, width, height);
   });
 
   return canvas;
+}
+
+function drawFaceSizeMarker(
+  ctx: CanvasRenderingContext2D,
+  panelEl: HTMLElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  const faceSize = panelEl.querySelector<HTMLElement>("[data-face-size]")?.dataset.faceSize;
+  const diameter = Math.min(width, height) * faceSizeMarkerRatio(faceSize);
+  if (!diameter) return;
+
+  const radius = diameter / 2;
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(31, 62, 85, 0.12)";
+  ctx.fill();
+  ctx.strokeStyle = "#1f3e55";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function faceSizeMarkerRatio(faceSize: string | undefined) {
+  if (faceSize === "extraSmall") return 0.2;
+  if (faceSize === "small") return 0.4;
+  if (faceSize === "medium") return 0.6;
+  if (faceSize === "large") return 0.8;
+  if (faceSize === "extraLarge") return 1.2;
+  return 0;
 }
 
 function strokePanelFrame(
@@ -453,6 +496,7 @@ function objectToPanelRow(raw: RawSheetRow, order: number, fallbackPageNumber = 
     const panelSize = parseSize(String(normalized.panelSize ?? row.panelSize));
     const emotionSize = parseEmotion(String(normalized.emotionSize ?? ""));
     const shape = parseShape(String(normalized.shape ?? row.shape));
+    const faceSize = parseFaceSize(String(normalized.faceSize ?? row.faceSize));
 
     return {
       ...row,
@@ -463,6 +507,7 @@ function objectToPanelRow(raw: RawSheetRow, order: number, fallbackPageNumber = 
       role: String(normalized.role ?? ""),
       shape: shape.value,
       camera: String(normalized.camera ?? ""),
+      faceSize: faceSize.value,
       content: String(normalized.content ?? ""),
       order,
       warnings: {
@@ -470,6 +515,7 @@ function objectToPanelRow(raw: RawSheetRow, order: number, fallbackPageNumber = 
         emotionSize: emotionSize.warning,
         panelSize: panelSize.warning,
         shape: shape.warning,
+        faceSize: faceSize.warning,
       },
     };
 }
@@ -505,6 +551,17 @@ function parseShape(value: string): { value: Shape; warning?: string } {
   if (["正", "正方形", "square", "s"].includes(normalized)) return { value: "square" };
   if (["横", "horizontal", "h"].includes(normalized)) return { value: "horizontal" };
   return { value: "vertical", warning: "縦・正・横から選んでください" };
+}
+
+function parseFaceSize(value: string): { value: FaceSize; warning?: string } {
+  const normalized = value.trim().toLowerCase();
+  if (["", "ー", "-", "none", "null"].includes(normalized)) return { value: "none" };
+  if (["極小", "xs", "extra small", "extrasmall"].includes(normalized)) return { value: "extraSmall" };
+  if (["小", "small", "s"].includes(normalized)) return { value: "small" };
+  if (["中", "medium", "m"].includes(normalized)) return { value: "medium" };
+  if (["大", "large", "l"].includes(normalized)) return { value: "large" };
+  if (["特大", "extra large", "extralarge", "xl"].includes(normalized)) return { value: "extraLarge" };
+  return { value: "medium", warning: "ー・極小・小・中・大・特大から選んでください" };
 }
 
 function parseCsv(text: string, delimiter: string) {

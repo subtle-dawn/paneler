@@ -1,6 +1,7 @@
 export type ReadingDirection = "rtl" | "ltr";
 export type EmotionSize = "small" | "medium" | "large" | null;
 export type Size = "extraSmall" | "small" | "medium" | "large" | "extraLarge" | "fullPage";
+export type FaceSize = "none" | "extraSmall" | "small" | "medium" | "large" | "extraLarge";
 export type Shape = "vertical" | "square" | "horizontal";
 export type BleedSide = "top" | "right" | "bottom" | "left";
 export type PanelBleed = Partial<Record<BleedSide, boolean>>;
@@ -12,6 +13,7 @@ export type Panel = {
   role: string;
   shape: Shape;
   camera: string;
+  faceSize: FaceSize;
   content: string;
   isFrameHidden?: boolean;
   bleed?: PanelBleed;
@@ -35,7 +37,7 @@ export type Project = {
 
 export type PanelRow = Panel & {
   pageNumber: number;
-  warnings?: Partial<Record<"pageNumber" | "emotionSize" | "panelSize" | "shape", string>>;
+  warnings?: Partial<Record<"pageNumber" | "emotionSize" | "panelSize" | "shape" | "faceSize", string>>;
 };
 
 export type LayoutPanel = Panel & {

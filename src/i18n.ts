@@ -16,6 +16,7 @@ export const t = {
   role: "役割",
   shape: "形",
   camera: "カメラ",
+  faceSize: "顔サイズ",
   content: "内容",
   small: "小",
   medium: "中",
@@ -70,4 +71,13 @@ export const shapeLabel = {
   vertical: t.vertical,
   square: t.square,
   horizontal: t.horizontal,
+} as const;
+
+export const faceSizeLabel = {
+  none: "ー",
+  extraSmall: "極小",
+  small: t.small,
+  medium: t.medium,
+  large: t.large,
+  extraLarge: "特大",
 } as const;
