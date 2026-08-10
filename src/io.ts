@@ -3,7 +3,7 @@ import { createId, createPanelRow } from "./storage";
 import type { EmotionSize, FaceSize, PanelRow, Project, Shape, Size } from "./types";
 
 type RawSheetRow = Record<string, unknown>;
-const STORYBOARD_TEMPLATE_URL = "/templates/storyboard-template.xlsx";
+const STORYBOARD_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/storyboard-template.xlsx`;
 const jsonSheetName = "JSON";
 const jsonChunkLength = 30000;
 const exportDpi = 600;
