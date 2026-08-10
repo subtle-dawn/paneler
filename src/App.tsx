@@ -50,6 +50,7 @@ export function App() {
   const [activePage, setActivePage] = useState(1);
   const [status, setStatus] = useState(t.saved);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAppHelpOpen, setIsAppHelpOpen] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("png");
   const [downloadScope, setDownloadScope] = useState<DownloadScope>("active");
@@ -379,6 +380,14 @@ export function App() {
           <h1>{t.appName}</h1>
         </div>
         <div className="topbar-actions">
+          <button
+            type="button"
+            className="header-button"
+            aria-label="Panelerの説明"
+            onClick={() => setIsAppHelpOpen(true)}
+          >
+            Panelerとは？
+          </button>
           <button type="button" className="header-button" onClick={() => setIsSettingsOpen(true)}>
             {t.settings}
           </button>
@@ -403,6 +412,34 @@ export function App() {
           }}
         />
       </header>
+
+      {isAppHelpOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsAppHelpOpen(false)}>
+          <section
+            className="settings-modal page-help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="app-help-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <h2 id="app-help-title">Panelerとは？</h2>
+              <button type="button" className="icon-button" onClick={() => setIsAppHelpOpen(false)} title={t.close}>
+                <X size={18} />
+              </button>
+            </div>
+            <p className="page-help-text">
+              文字ネームを書くことで、自動でコマ割りまでのネームを生成できるサイトです。
+              <br />
+              ブラウザ完結のため、入力内容がサーバーに送信されることはありません。
+              <br />
+              入力内容はExcelとしてエクスポートでき、Excelで追記した場合インポートもできます。
+              <br />
+              生成したネームは、PNG形式またはPDF形式でダウンロードできます。
+            </p>
+          </section>
+        </div>
+      )}
 
       {isDownloadOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsDownloadOpen(false)}>
