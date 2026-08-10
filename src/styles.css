@@ -331,6 +331,14 @@ button {
   white-space: nowrap;
 }
 
+.page-strip.reading-rtl {
+  direction: rtl;
+}
+
+.page-strip.reading-ltr {
+  direction: ltr;
+}
+
 .page-thumb {
   background: #fffdfa;
   border: 1px solid #c9beb0;
@@ -342,6 +350,10 @@ button {
   padding: 10px;
   text-align: left;
   width: 116px;
+}
+
+.page-thumb {
+  direction: ltr;
 }
 
 .page-thumb.active {
@@ -402,6 +414,62 @@ button {
   display: flex;
   flex-direction: column;
   padding: 4px;
+  position: relative;
+}
+
+.mini-side-mark,
+.page-side-mark {
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+}
+
+.manga-page.side-mark-left .page-side-mark {
+  left: 5px;
+}
+
+.manga-page.side-mark-right .page-side-mark {
+  right: 5px;
+}
+
+.mini-page.side-mark-left .mini-side-mark {
+  left: -8px;
+}
+
+.mini-page.side-mark-right .mini-side-mark {
+  right: -8px;
+}
+
+.mini-side-mark {
+  height: 8px;
+  width: 8px;
+}
+
+.mini-side-mark span,
+.page-side-mark span {
+  background: #181611;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform-origin: center;
+}
+
+.mini-side-mark span {
+  height: 1px;
+  margin-left: -5px;
+  width: 10px;
+}
+
+.mini-side-mark span:first-child,
+.page-side-mark span:first-child {
+  transform: rotate(45deg);
+}
+
+.mini-side-mark span:last-child,
+.page-side-mark span:last-child {
+  transform: rotate(-45deg);
 }
 
 .mini-row-group {
@@ -630,8 +698,20 @@ h2 {
   flex-direction: column;
   gap: 0;
   max-height: 72vh;
-  padding: 13px;
+  padding: 40px;
+  position: relative;
   width: min(100%, 520px);
+}
+
+.page-side-mark {
+  height: 30px;
+  width: 30px;
+}
+
+.page-side-mark span {
+  height: 2px;
+  margin-left: -13px;
+  width: 26px;
 }
 
 .export-pages {

@@ -382,7 +382,7 @@ export function App() {
       )}
 
       <section className="page-list-bar" aria-label={t.pages}>
-        <div className="page-strip thumbnail-strip">
+        <div className={`page-strip thumbnail-strip reading-${syncedProject.readingDirection}`}>
           {layouts.map((layout) => (
             <button
               key={layout.pageNumber}
@@ -440,6 +440,7 @@ export function App() {
               </span>
               <MiniPage
                 layout={layout}
+                readingDirection={syncedProject.readingDirection}
                 rowHeights={project.rowHeights?.[layout.pageNumber]}
                 rowWidths={project.rowWidths?.[layout.pageNumber]}
               />
@@ -599,6 +600,7 @@ export function App() {
               {activeLayout.warning && <p className="warning">{activeLayout.warning}</p>}
               <PagePreview
                 layout={activeLayout}
+                readingDirection={syncedProject.readingDirection}
                 rowHeights={project.rowHeights?.[activeLayout.pageNumber]}
                 rowWidths={project.rowWidths?.[activeLayout.pageNumber]}
                 selectedPanelId={selectedRowId}
@@ -618,6 +620,7 @@ export function App() {
           <PageCanvas
             key={layout.pageNumber}
             layout={layout}
+            readingDirection={syncedProject.readingDirection}
             rowHeights={project.rowHeights?.[layout.pageNumber]}
             rowWidths={project.rowWidths?.[layout.pageNumber]}
             register={(node) => {
@@ -637,6 +640,7 @@ export function App() {
 
 function PagePreview({
   layout,
+  readingDirection,
   rowHeights,
   rowWidths,
   selectedPanelId,
@@ -646,6 +650,7 @@ function PagePreview({
   register,
 }: {
   layout: ReturnType<typeof rowsToLayouts>[number];
+  readingDirection: Project["readingDirection"];
   rowHeights?: number[];
   rowWidths?: number[][];
   selectedPanelId: string | null;
@@ -658,6 +663,7 @@ function PagePreview({
     <div className="page-stage">
       <PageCanvas
         layout={layout}
+        readingDirection={readingDirection}
         rowHeights={rowHeights}
         rowWidths={rowWidths}
         selectedPanelId={selectedPanelId}
@@ -672,6 +678,7 @@ function PagePreview({
 
 function PageCanvas({
   layout,
+  readingDirection,
   rowHeights,
   rowWidths,
   selectedPanelId,
@@ -681,6 +688,7 @@ function PageCanvas({
   register,
 }: {
   layout: ReturnType<typeof rowsToLayouts>[number];
+  readingDirection: Project["readingDirection"];
   rowHeights?: number[];
   rowWidths?: number[][];
   selectedPanelId?: string | null;
@@ -692,6 +700,7 @@ function PageCanvas({
   const pageRef = useRef<HTMLDivElement | null>(null);
   const normalizedRowHeights = normalizeRowHeights(rowHeights, layout.rows);
   const normalizedRowWidths = normalizeRowWidths(rowWidths, layout.rows.length);
+  const sideMarkPosition = getSideMarkPosition(layout.pageNumber, readingDirection);
 
   function setPageNode(node: HTMLDivElement | null) {
     pageRef.current = node;
@@ -779,7 +788,11 @@ function PageCanvas({
   }
 
   return (
-    <div className="manga-page" ref={setPageNode}>
+    <div className={`manga-page side-mark-${sideMarkPosition}`} ref={setPageNode}>
+      <div className="page-side-mark" aria-hidden="true">
+        <span />
+        <span />
+      </div>
       {layout.rows.map((row, rowIndex) => (
         <div className="layout-row-group" key={rowIndex}>
           <div
@@ -871,18 +884,25 @@ function PageCanvas({
 
 function MiniPage({
   layout,
+  readingDirection,
   rowHeights,
   rowWidths,
 }: {
   layout: ReturnType<typeof rowsToLayouts>[number];
+  readingDirection: Project["readingDirection"];
   rowHeights?: number[];
   rowWidths?: number[][];
 }) {
   const normalizedRowHeights = normalizeRowHeights(rowHeights, layout.rows);
   const normalizedRowWidths = normalizeRowWidths(rowWidths, layout.rows.length);
+  const sideMarkPosition = getSideMarkPosition(layout.pageNumber, readingDirection);
 
   return (
-    <div className="mini-page">
+    <div className={`mini-page side-mark-${sideMarkPosition}`}>
+      <div className="mini-side-mark" aria-hidden="true">
+        <span />
+        <span />
+      </div>
       {layout.rows.map((row, rowIndex) => (
         <div className="mini-row-group" key={rowIndex} style={{ flex: `${normalizedRowHeights[rowIndex]} 1 0` }}>
           <div
@@ -960,6 +980,11 @@ function normalizeRowWidths(rowWidths: number[][] | undefined, rowCount: number)
       return typeof weight === "number" && Number.isFinite(weight) && weight > 0 ? weight : 1;
     }),
   );
+}
+
+function getSideMarkPosition(pageNumber: number, readingDirection: Project["readingDirection"]) {
+  const isLeftPage = readingDirection === "rtl" ? pageNumber % 2 === 1 : pageNumber % 2 === 0;
+  return isLeftPage ? "right" : "left";
 }
 
 function getColumnBoundaries(row: LayoutRow) {
