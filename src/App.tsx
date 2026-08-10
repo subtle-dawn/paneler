@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   ImageDown,
   Plus,
+  RotateCcw,
   Settings2,
   Trash2,
   X,
@@ -114,6 +115,25 @@ export function App() {
     });
   }
 
+  function clearActivePageLayoutAdjustments() {
+    setStatus(t.edited);
+    setProject((current) => {
+      const nextRowHeights = { ...(current.rowHeights ?? {}) };
+      const nextRowWidths = { ...(current.rowWidths ?? {}) };
+      delete nextRowHeights[activePage];
+      delete nextRowWidths[activePage];
+
+      return {
+        ...current,
+        rowHeights: nextRowHeights,
+        rowWidths: nextRowWidths,
+      };
+    });
+    setRows((current) =>
+      current.map((row) => (row.pageNumber === activePage ? { ...row, bleed: undefined } : row)).map(normalizeOrder),
+    );
+  }
+
   function updateRow(id: string, patch: Partial<PanelRow>) {
     setStatus(t.edited);
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)).map(normalizeOrder));
@@ -144,7 +164,7 @@ export function App() {
           if (row.id !== id) return row;
 
           const bleed = { ...(row.bleed ?? {}) };
-          bleed[side] = !bleed[side];
+          bleed[side] = !isPanelBleedSideActive(row, side);
           return { ...row, bleed };
         })
         .map(normalizeOrder),
@@ -412,6 +432,9 @@ export function App() {
       )}
 
       <section className={`page-list-bar reading-${syncedProject.readingDirection}`} aria-label={t.pages}>
+        <div className="page-list-header">
+          <h2>ページ一覧</h2>
+        </div>
         <div className={`page-strip thumbnail-strip reading-${syncedProject.readingDirection}`}>
           {layouts.map((layout) => (
             <button
@@ -484,6 +507,9 @@ export function App() {
 
       <section className="workspace">
         <div className="editor-pane">
+          <div className="editor-toolbar">
+            <h2>文字ネーム</h2>
+          </div>
           <div className="storyboard-table-wrap">
             <table className="storyboard-table">
               <thead>
@@ -625,6 +651,13 @@ export function App() {
         </div>
 
         <aside className="preview-pane">
+          <div className="preview-toolbar">
+            <h2>ネーム</h2>
+            <button type="button" className="button preview-clear-button" onClick={clearActivePageLayoutAdjustments}>
+              <RotateCcw size={16} />
+              クリア
+            </button>
+          </div>
           {activeLayout && (
             <>
               {activeLayout.warning && <p className="warning">{activeLayout.warning}</p>}
@@ -937,8 +970,8 @@ function PanelArticle({
   onPanelBleedToggle?: (id: string, side: BleedSide, blockedSide: "left" | "right") => void;
 }) {
   const isSelected = panel.id === selectedPanelId;
-  const bleedStyle = getPanelBleedStyle(panel.bleed, sideMarkPosition, pageBorderBleedAmount, allowedBleedSides);
-  const bleedEdgeClasses = getBleedEdgeClassName(panel.bleed, allowedBleedSides);
+  const bleedStyle = getPanelBleedStyle(panel, sideMarkPosition, pageBorderBleedAmount, allowedBleedSides);
+  const bleedEdgeClasses = getBleedEdgeClassName(panel, allowedBleedSides);
 
   return (
     <article
@@ -972,7 +1005,7 @@ function PanelArticle({
               <button
                 key={side}
                 type="button"
-                className={`bleed-button bleed-${side} ${panel.bleed?.[side] ? "active" : ""}`}
+                className={`bleed-button bleed-${side} ${isPanelBleedSideActive(panel, side) ? "active" : ""}`}
                 title={control.label}
                 aria-label={control.label}
                 onClick={() => onPanelBleedToggle?.(panel.id, side, sideMarkPosition)}
@@ -1020,12 +1053,12 @@ function MiniPage({
               return (
                 <span
                   key={panel.id}
-                  className={`${panel.isFrameHidden ? "frame-hidden" : ""} ${getBleedEdgeClassName(panel.bleed, allowedBleedSides)}`}
+                  className={`${panel.isFrameHidden ? "frame-hidden" : ""} ${getBleedEdgeClassName(panel, allowedBleedSides)}`}
                   style={{
                     gridColumn: `${panel.colStart} / span ${panel.colSpan}`,
                     gridRow: 1,
                     ...getPanelBleedStyle(
-                      panel.bleed,
+                      panel,
                       sideMarkPosition,
                       miniPageBorderBleedAmount,
                       allowedBleedSides,
@@ -1052,9 +1085,9 @@ function MiniPage({
                   return (
                     <i
                       key={panel.id}
-                      className={`${panel.isFrameHidden ? "frame-hidden" : ""} ${getBleedEdgeClassName(panel.bleed, allowedBleedSides)}`}
+                      className={`${panel.isFrameHidden ? "frame-hidden" : ""} ${getBleedEdgeClassName(panel, allowedBleedSides)}`}
                       style={getPanelBleedStyle(
-                        panel.bleed,
+                        panel,
                         sideMarkPosition,
                         miniPageBorderBleedAmount,
                         allowedBleedSides,
@@ -1129,32 +1162,47 @@ function getSideMarkPosition(pageNumber: number, readingDirection: Project["read
 }
 
 function getPanelBleedStyle(
-  bleed: LayoutPanel["bleed"],
+  panel: Pick<LayoutPanel, "bleed" | "shape">,
   blockedSide: "left" | "right",
   amount: number,
   allowedSides: BleedSide[],
 ): CSSProperties {
-  if (!bleed || allowedSides.length === 0) return {};
+  if (allowedSides.length === 0) return {};
   const outerSide = getOuterBleedSide(blockedSide);
 
   return {
-    marginTop: allowedSides.includes("top") && bleed.top ? -amount : undefined,
-    marginRight: outerSide === "right" && allowedSides.includes("right") && bleed.right ? -amount : undefined,
-    marginBottom: allowedSides.includes("bottom") && bleed.bottom ? -amount : undefined,
-    marginLeft: outerSide === "left" && allowedSides.includes("left") && bleed.left ? -amount : undefined,
-    zIndex: allowedSides.some((side) => bleed[side]) ? 1 : undefined,
+    marginTop: allowedSides.includes("top") && isPanelBleedSideActive(panel, "top") ? -amount : undefined,
+    marginRight:
+      outerSide === "right" && allowedSides.includes("right") && isPanelBleedSideActive(panel, "right")
+        ? -amount
+        : undefined,
+    marginBottom: allowedSides.includes("bottom") && isPanelBleedSideActive(panel, "bottom") ? -amount : undefined,
+    marginLeft:
+      outerSide === "left" && allowedSides.includes("left") && isPanelBleedSideActive(panel, "left")
+        ? -amount
+        : undefined,
+    zIndex: allowedSides.some((side) => isPanelBleedSideActive(panel, side)) ? 1 : undefined,
   };
 }
 
-function getActiveBleedSides(bleed: LayoutPanel["bleed"], allowedSides: BleedSide[]) {
-  if (!bleed) return [];
-  return allowedSides.filter((side) => bleed[side]);
+function getActiveBleedSides(panel: Pick<LayoutPanel, "bleed" | "shape">, allowedSides: BleedSide[]) {
+  return allowedSides.filter((side) => isPanelBleedSideActive(panel, side));
 }
 
-function getBleedEdgeClassName(bleed: LayoutPanel["bleed"], allowedSides: BleedSide[]) {
-  return getActiveBleedSides(bleed, allowedSides)
+function getBleedEdgeClassName(panel: Pick<LayoutPanel, "bleed" | "shape">, allowedSides: BleedSide[]) {
+  return getActiveBleedSides(panel, allowedSides)
     .map((side) => `bleed-edge-${side}`)
     .join(" ");
+}
+
+function isPanelBleedSideActive(panel: Pick<PanelRow, "bleed" | "shape">, side: BleedSide) {
+  return panel.bleed?.[side] ?? isDefaultBleedSideActive(panel.shape, side);
+}
+
+function isDefaultBleedSideActive(shape: Shape, side: BleedSide) {
+  if (shape === "vertical") return side === "top" || side === "bottom";
+  if (shape === "horizontal") return side === "left" || side === "right";
+  return false;
 }
 
 function getOuterBleedSide(blockedSide: "left" | "right"): "left" | "right" {

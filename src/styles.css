@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color: #211f1a;
   background: #ece6da;
   font-family:
@@ -29,7 +29,7 @@ button {
 
 .app-shell {
   min-height: 100vh;
-  padding: 22px 22px 0;
+  padding: 14px 14px 0;
 }
 
 .topbar {
@@ -316,6 +316,19 @@ button {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.page-list-header,
+.editor-toolbar,
+.preview-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-height: 34px;
+}
+
+.page-list-header {
+  width: 100%;
+}
+
 .page-list-bar.reading-rtl {
   justify-items: end;
 }
@@ -323,12 +336,6 @@ button {
 .page-list-bar.reading-rtl .page-strip {
   justify-content: flex-start;
   width: 100%;
-}
-
-.page-list-bar h2 {
-  color: #625c52;
-  font-size: 14px;
-  white-space: nowrap;
 }
 
 .page-strip {
@@ -568,6 +575,15 @@ h2 {
   border-radius: 8px;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.editor-toolbar,
+.preview-toolbar {
+  margin-bottom: 8px;
+}
+
+.preview-clear-button {
+  min-height: 34px;
 }
 
 .storyboard-table {
@@ -1028,10 +1044,6 @@ h2 {
 }
 
 @media (max-width: 640px) {
-  .app-shell {
-    padding: 14px 14px 0;
-  }
-
   .project-controls fieldset {
     align-items: flex-start;
     flex-direction: column;
