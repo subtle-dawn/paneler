@@ -313,7 +313,16 @@ button {
   align-items: center;
   display: grid;
   gap: 8px;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.page-list-bar.reading-rtl {
+  justify-items: end;
+}
+
+.page-list-bar.reading-rtl .page-strip {
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .page-list-bar h2 {
@@ -325,18 +334,21 @@ button {
 .page-strip {
   display: flex;
   gap: 12px;
+  grid-column: 1 / -1;
+  justify-self: stretch;
   min-width: 0;
   overflow-x: auto;
   padding: 2px 0 8px;
   white-space: nowrap;
+  width: 100%;
 }
 
 .page-strip.reading-rtl {
-  direction: rtl;
+  flex-direction: row-reverse;
 }
 
 .page-strip.reading-ltr {
-  direction: ltr;
+  flex-direction: row;
 }
 
 .page-thumb {
@@ -435,11 +447,11 @@ button {
 }
 
 .mini-page.side-mark-left .mini-side-mark {
-  left: -8px;
+  left: -10px;
 }
 
 .mini-page.side-mark-right .mini-side-mark {
-  right: -8px;
+  right: -10px;
 }
 
 .mini-side-mark {

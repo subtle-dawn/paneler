@@ -381,7 +381,7 @@ export function App() {
         </div>
       )}
 
-      <section className="page-list-bar" aria-label={t.pages}>
+      <section className={`page-list-bar reading-${syncedProject.readingDirection}`} aria-label={t.pages}>
         <div className={`page-strip thumbnail-strip reading-${syncedProject.readingDirection}`}>
           {layouts.map((layout) => (
             <button
