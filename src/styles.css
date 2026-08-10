@@ -111,12 +111,18 @@ button {
   box-shadow: 0 12px 24px rgba(37, 30, 20, 0.14);
   display: grid;
   gap: 8px;
-  min-width: 190px;
+  min-width: 230px;
   padding: 10px;
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
   z-index: 10;
+}
+
+.dropdown-panel .button {
+  justify-content: flex-start;
+  white-space: nowrap;
+  width: 100%;
 }
 
 .modal-backdrop {
@@ -587,6 +593,22 @@ h2 {
   max-height: 72vh;
   padding: 13px;
   width: min(100%, 520px);
+}
+
+.export-pages {
+  height: 1px;
+  left: -10000px;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  width: 520px;
+}
+
+.export-pages .manga-page {
+  height: auto;
+  margin-bottom: 24px;
+  max-height: none;
+  width: 520px;
 }
 
 .layout-row {

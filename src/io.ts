@@ -100,26 +100,33 @@ export async function exportPagePng(pageEl: HTMLElement, fileName: string) {
   if (blob) downloadBlob(fileName, blob, "image/png");
 }
 
-export async function exportPagePdf(pageEl: HTMLElement, fileName: string) {
+export async function exportPagesPdf(pageEls: HTMLElement[], fileName: string) {
+  if (pageEls.length === 0) return;
+
   const { jsPDF } = await import("jspdf");
-  const canvas = renderPageToCanvas(pageEl);
-  const image = canvas.toDataURL("image/png");
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 10;
-  const maxWidth = pageWidth - margin * 2;
-  const maxHeight = pageHeight - margin * 2;
-  const imageRatio = canvas.width / canvas.height;
-  let width = maxWidth;
-  let height = width / imageRatio;
 
-  if (height > maxHeight) {
-    height = maxHeight;
-    width = height * imageRatio;
-  }
+  pageEls.forEach((pageEl, index) => {
+    if (index > 0) pdf.addPage();
+    const canvas = renderPageToCanvas(pageEl);
+    const image = canvas.toDataURL("image/png");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const maxWidth = pageWidth - margin * 2;
+    const maxHeight = pageHeight - margin * 2;
+    const imageRatio = canvas.width / canvas.height;
+    let width = maxWidth;
+    let height = width / imageRatio;
 
-  pdf.addImage(image, "PNG", (pageWidth - width) / 2, (pageHeight - height) / 2, width, height);
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * imageRatio;
+    }
+
+    pdf.addImage(image, "PNG", (pageWidth - width) / 2, (pageHeight - height) / 2, width, height);
+  });
+
   pdf.save(fileName);
 }
 

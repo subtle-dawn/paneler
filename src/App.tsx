@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { emotionLabel, shapeLabel, sizeLabel, t } from "./i18n";
-import { downloadStoryboardXlsx, exportPagePdf, exportPagePng, readSheetRows } from "./io";
+import { downloadStoryboardXlsx, exportPagePng, exportPagesPdf, readSheetRows } from "./io";
 import { rowsToLayouts } from "./layout";
 import { createDefaultProject, createPanelRow, loadProject, projectToRows, rowsToProject, saveProject } from "./storage";
 import type { EmotionSize, PanelRow, Project, Shape, Size } from "./types";
@@ -220,17 +220,19 @@ export function App() {
                   if (pageEl) exportPagePng(pageEl, `${project.title}-page-${activePage}.png`);
                 }}
               >
-                PNG
+                PNG（選択中ページ）
               </button>
               <button
                 type="button"
                 className="button primary"
                 onClick={() => {
-                  const pageEl = pageRefs.current[activePage];
-                  if (pageEl) exportPagePdf(pageEl, `${project.title}-page-${activePage}.pdf`);
+                  const pageEls = layouts
+                    .map((layout) => pageRefs.current[layout.pageNumber])
+                    .filter((pageEl): pageEl is HTMLDivElement => Boolean(pageEl));
+                  exportPagesPdf(pageEls, `${project.title}_コマ割り.pdf`);
                 }}
               >
-                PDF
+                PDF（全ページ）
               </button>
             </div>
           </details>
@@ -495,6 +497,17 @@ export function App() {
           )}
         </aside>
       </section>
+      <div className="export-pages" aria-hidden="true">
+        {layouts.map((layout) => (
+          <PageCanvas
+            key={layout.pageNumber}
+            layout={layout}
+            register={(node) => {
+              if (node) pageRefs.current[layout.pageNumber] = node;
+            }}
+          />
+        ))}
+      </div>
     </main>
   );
 }
@@ -508,33 +521,45 @@ function PagePreview({
 }) {
   return (
     <div className="page-stage">
-      <div className="manga-page" ref={register}>
-        {layout.rows.map((row, rowIndex) => (
-          <div className="layout-row" key={rowIndex}>
-            {row.panels.map((panel) => (
-              <article
-                key={panel.id}
-                className={`panel-frame ${panel.shape}`}
-                style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}` }}
-              >
-                <div className="panel-number" data-export-text>
-                  {panel.visualNumber}
+      <PageCanvas layout={layout} register={register} />
+    </div>
+  );
+}
+
+function PageCanvas({
+  layout,
+  register,
+}: {
+  layout: ReturnType<typeof rowsToLayouts>[number];
+  register: (node: HTMLDivElement | null) => void;
+}) {
+  return (
+    <div className="manga-page" ref={register}>
+      {layout.rows.map((row, rowIndex) => (
+        <div className="layout-row" key={rowIndex}>
+          {row.panels.map((panel) => (
+            <article
+              key={panel.id}
+              className={`panel-frame ${panel.shape}`}
+              style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}` }}
+            >
+              <div className="panel-number" data-export-text>
+                {panel.visualNumber}
+              </div>
+              <div className="panel-meta" data-export-text>
+                {sizeLabel[panel.panelSize]}・{shapeLabel[panel.shape]}
+                {panel.camera ? `・${panel.camera}` : ""}
+              </div>
+              {panel.role && (
+                <div className="panel-role" data-export-text>
+                  {panel.role}
                 </div>
-                <div className="panel-meta" data-export-text>
-                  {sizeLabel[panel.panelSize]}・{shapeLabel[panel.shape]}
-                  {panel.camera ? `・${panel.camera}` : ""}
-                </div>
-                {panel.role && (
-                  <div className="panel-role" data-export-text>
-                    {panel.role}
-                  </div>
-                )}
-                <p data-export-text>{panel.content}</p>
-              </article>
-            ))}
-          </div>
-        ))}
-      </div>
+              )}
+              <p data-export-text>{panel.content}</p>
+            </article>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
