@@ -12,10 +12,17 @@ export function loadProject(): Project | null {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as Project;
+    return normalizeProject(JSON.parse(raw) as Project);
   } catch {
     return null;
   }
+}
+
+export function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    note: project.note ?? "",
+  };
 }
 
 export function createId(prefix: string) {
@@ -42,6 +49,7 @@ export function createDefaultProject(): Project {
   return {
     id: createId("project"),
     title: t.defaultProjectTitle,
+    note: "",
     readingDirection: "rtl",
     pages: [
       {

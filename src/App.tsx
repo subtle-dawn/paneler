@@ -24,7 +24,7 @@ import {
   readSheetRows,
 } from "./io";
 import { rowsToLayouts } from "./layout";
-import { createDefaultProject, createPanelRow, loadProject, projectToRows, rowsToProject, saveProject } from "./storage";
+import { createDefaultProject, createPanelRow, loadProject, normalizeProject, projectToRows, rowsToProject, saveProject } from "./storage";
 import type { BleedSide, EmotionSize, FaceSize, LayoutPanel, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
 
 const sizeOptions: Size[] = ["extraSmall", "small", "medium", "large", "extraLarge", "fullPage"];
@@ -58,6 +58,10 @@ export function App() {
   const [isPageHelpOpen, setIsPageHelpOpen] = useState(false);
   const [isStoryboardHelpOpen, setIsStoryboardHelpOpen] = useState(false);
   const [isPreviewHelpOpen, setIsPreviewHelpOpen] = useState(false);
+  const [isPageListCollapsed, setIsPageListCollapsed] = useState(false);
+  const [isStoryboardCollapsed, setIsStoryboardCollapsed] = useState(false);
+  const [isProjectNoteCollapsed, setIsProjectNoteCollapsed] = useState(false);
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   const [draggingPage, setDraggingPage] = useState<number | null>(null);
   const [dragOverPage, setDragOverPage] = useState<number | null>(null);
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
@@ -305,7 +309,7 @@ export function App() {
     if (importedProject) {
       const importedRows = await readSheetRows(file);
       const mergedRows = mergeRowsWithProjectRows(importedRows, importedProject);
-      const mergedProject = rowsToProject(importedProject, mergedRows);
+      const mergedProject = normalizeProject(rowsToProject(importedProject, mergedRows));
       setProject(mergedProject);
       setRows(mergedRows.map(normalizeChoiceDefaults).map(normalizeOrder));
       setActivePage(mergedRows[0]?.pageNumber ?? mergedProject.pages[0]?.pageNumber ?? 1);
@@ -641,21 +645,35 @@ export function App() {
       )}
 
       <section className={`page-list-bar reading-${syncedProject.readingDirection}`} aria-label={t.pages}>
-        <div className="page-list-header">
+        <div className="page-list-header collapsible-header" onClick={() => setIsPageListCollapsed((current) => !current)}>
           <div className="page-list-title">
-            <h2>{t.pages}</h2>
+            <button
+              type="button"
+              className="collapse-toggle"
+              aria-expanded={!isPageListCollapsed}
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsPageListCollapsed((current) => !current);
+              }}
+            >
+              <span className="collapse-triangle" aria-hidden="true" />
+              <h2>{t.pages}</h2>
+            </button>
             <button
               type="button"
               className="help-button"
               aria-label={t.pageHelpAria}
-              onClick={() => setIsPageHelpOpen(true)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsPageHelpOpen(true);
+              }}
             >
               ?
             </button>
             {pageCountWarning && <WarningBadge warning={pageCountWarning} />}
           </div>
         </div>
-        <div className={`page-strip thumbnail-strip reading-${syncedProject.readingDirection}`}>
+        {!isPageListCollapsed && <div className={`page-strip thumbnail-strip reading-${syncedProject.readingDirection}`}>
           {pageSpreads.map((spread) => (
             <div
               className={`page-spread reading-${syncedProject.readingDirection}`}
@@ -729,25 +747,39 @@ export function App() {
           <button type="button" className="page-thumb add-page-thumb" onClick={appendPage} title={t.addPage}>
             <Plus size={28} />
           </button>
-        </div>
+        </div>}
       </section>
 
       <section className="workspace">
         <div className="editor-pane">
-          <div className="editor-toolbar">
+          <div className="editor-toolbar collapsible-header" onClick={() => setIsStoryboardCollapsed((current) => !current)}>
             <div className="page-list-title">
-              <h2>{t.storyboard}</h2>
+              <button
+                type="button"
+                className="collapse-toggle"
+                aria-expanded={!isStoryboardCollapsed}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsStoryboardCollapsed((current) => !current);
+                }}
+              >
+                <span className="collapse-triangle" aria-hidden="true" />
+                <h2>{t.storyboard}</h2>
+              </button>
               <button
                 type="button"
                 className="help-button"
                 aria-label={t.storyboardHelpAria}
-                onClick={() => setIsStoryboardHelpOpen(true)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsStoryboardHelpOpen(true);
+                }}
               >
                 ?
               </button>
             </div>
           </div>
-          <div className="storyboard-table-wrap">
+          {!isStoryboardCollapsed && <div className="storyboard-table-wrap">
             <table className="storyboard-table">
               <thead>
                 <tr>
@@ -898,27 +930,73 @@ export function App() {
                     </tr>
               </tbody>
             </table>
+          </div>}
+          <div className="project-note-field">
+            <div className="project-note-header collapsible-header" onClick={() => setIsProjectNoteCollapsed((current) => !current)}>
+              <div className="page-list-title">
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  aria-expanded={!isProjectNoteCollapsed}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsProjectNoteCollapsed((current) => !current);
+                  }}
+                >
+                  <span className="collapse-triangle" aria-hidden="true" />
+                  <h2>{t.projectNote}</h2>
+                </button>
+              </div>
+            </div>
+            {!isProjectNoteCollapsed && <textarea
+              value={project.note}
+              placeholder={t.projectNotePlaceholder}
+              rows={5}
+              aria-label={t.projectNote}
+              onChange={(event) => updateProject({ note: event.target.value })}
+            />}
           </div>
         </div>
 
         <aside className="preview-pane">
-          <div className="preview-toolbar">
+          <div className="preview-toolbar collapsible-header" onClick={() => setIsPreviewCollapsed((current) => !current)}>
             <div className="page-list-title">
-              <h2>{t.preview}</h2>
+              <button
+                type="button"
+                className="collapse-toggle"
+                aria-expanded={!isPreviewCollapsed}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsPreviewCollapsed((current) => !current);
+                }}
+              >
+                <span className="collapse-triangle" aria-hidden="true" />
+                <h2>{t.preview}</h2>
+              </button>
               <button
                 type="button"
                 className="help-button"
                 aria-label={t.previewHelpAria}
-                onClick={() => setIsPreviewHelpOpen(true)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsPreviewHelpOpen(true);
+                }}
               >
                 ?
               </button>
             </div>
-            <button type="button" className="button preview-clear-button" onClick={clearActivePageLayoutAdjustments}>
+            {!isPreviewCollapsed && <button
+              type="button"
+              className="button preview-clear-button"
+              onClick={(event) => {
+                event.stopPropagation();
+                clearActivePageLayoutAdjustments();
+              }}
+            >
               {t.clear}
-            </button>
+            </button>}
           </div>
-          {activeLayout && (
+          {!isPreviewCollapsed && activeLayout && (
             <>
               {activeLayout.warning && <p className="warning">{activeLayout.warning}</p>}
               <PagePreview

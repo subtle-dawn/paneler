@@ -1,6 +1,8 @@
 export const t = {
   appName: "Paneler",
   title: "作品タイトル",
+  projectNote: "ノート",
+  projectNotePlaceholder: "作品全体のメモを書けます",
   readingDirection: "読み方向",
   pages: "ページ一覧",
   addPage: "ページ追加",

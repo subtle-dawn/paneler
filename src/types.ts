@@ -29,6 +29,7 @@ export type Page = {
 export type Project = {
   id: string;
   title: string;
+  note: string;
   readingDirection: ReadingDirection;
   rowHeights?: Record<string, number[]>;
   rowWidths?: Record<string, number[][]>;

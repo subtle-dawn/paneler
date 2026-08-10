@@ -390,10 +390,50 @@ button {
   width: 100%;
 }
 
+.collapsible-header {
+  cursor: pointer;
+}
+
 .page-list-title {
   align-items: center;
   display: inline-flex;
   gap: 8px;
+}
+
+.collapse-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: inline-flex;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0;
+}
+
+.collapse-toggle:hover h2 {
+  color: #526b60;
+}
+
+.collapse-toggle:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid rgba(109, 143, 141, 0.45);
+  outline-offset: 2px;
+}
+
+.collapse-triangle {
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid #625c52;
+  border-top: 5px solid transparent;
+  display: inline-block;
+  height: 0;
+  transform: rotate(90deg);
+  transition: transform 0.16s ease;
+  width: 0;
+}
+
+.collapse-toggle[aria-expanded="false"] .collapse-triangle {
+  transform: rotate(0deg);
 }
 
 .help-button {
@@ -714,6 +754,37 @@ h2 {
   border-radius: 8px;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.project-note-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.project-note-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-height: 34px;
+}
+
+.project-note-field textarea {
+  background: #fffdfa;
+  border: 1px solid #c9beb0;
+  border-radius: 6px;
+  color: #211f1a;
+  line-height: 1.6;
+  min-height: 120px;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.project-note-field textarea:focus {
+  border-color: #6d8f8d;
+  outline: 2px solid rgba(109, 143, 141, 0.25);
+  outline-offset: 1px;
 }
 
 .editor-toolbar,
