@@ -1,4 +1,5 @@
 import { ChangeEvent, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowLeft,
@@ -89,6 +90,20 @@ export function App() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isSettingsOpen]);
+
+  useEffect(() => {
+    function closeMenusOnOutsideClick(event: PointerEvent) {
+      if (!(event.target instanceof Node)) return;
+      const target = event.target;
+
+      document.querySelectorAll<HTMLDetailsElement>(".header-menu[open]").forEach((menu) => {
+        if (!menu.contains(target)) menu.open = false;
+      });
+    }
+
+    document.addEventListener("pointerdown", closeMenusOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeMenusOnOutsideClick);
+  }, []);
 
   function updateProject(next: Partial<Project>) {
     setStatus(t.edited);
@@ -670,7 +685,6 @@ export function App() {
           <div className="preview-toolbar">
             <h2>ネーム</h2>
             <button type="button" className="button preview-clear-button" onClick={clearActivePageLayoutAdjustments}>
-              <RotateCcw size={16} />
               クリア
             </button>
           </div>
@@ -1194,14 +1208,16 @@ function WarningBadge({ warning }: { warning: string }) {
       >
         !
       </span>
-      {tooltipPosition && (
+      {tooltipPosition &&
+        createPortal(
         <span
           className="column-warning-tooltip"
           role="tooltip"
           style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
         >
           {warning}
-        </span>
+        </span>,
+        document.body,
       )}
     </>
   );

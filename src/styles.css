@@ -29,6 +29,7 @@ button {
 
 .app-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 14px 14px 0;
 }
 
@@ -38,6 +39,8 @@ button {
   gap: 18px;
   justify-content: space-between;
   margin: 0 auto 18px;
+  position: relative;
+  z-index: 20;
 }
 
 .topbar h1 {
@@ -116,7 +119,7 @@ button {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
-  z-index: 10;
+  z-index: 50;
 }
 
 .dropdown-panel .button {
@@ -1132,12 +1135,15 @@ h2 {
   }
 
   .header-menu {
-    position: static;
+    position: relative;
   }
 
   .dropdown-panel {
-    margin-top: 8px;
-    position: static;
+    left: 0;
+    margin-top: 0;
+    max-width: calc(100vw - 28px);
+    position: absolute;
+    right: auto;
   }
 
   .manga-page {
@@ -1146,14 +1152,43 @@ h2 {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1499px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .manga-page {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px), (max-width: 1120px) and (orientation: portrait) {
   .project-controls fieldset {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .storyboard-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .storyboard-table {
+    min-width: calc(628px + 100vw);
+  }
+
+  .storyboard-table th:nth-child(8),
+  .storyboard-table td:nth-child(8) {
+    width: calc(100vw - 28px);
+  }
+
   .button {
     flex: 1 1 auto;
     justify-content: center;
+  }
+
+  .preview-clear-button {
+    flex: 0 0 auto;
+    margin-left: auto;
   }
 }
