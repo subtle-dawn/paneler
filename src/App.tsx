@@ -49,6 +49,9 @@ export function App() {
   const [activePage, setActivePage] = useState(1);
   const [status, setStatus] = useState(t.saved);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPageHelpOpen, setIsPageHelpOpen] = useState(false);
+  const [isStoryboardHelpOpen, setIsStoryboardHelpOpen] = useState(false);
+  const [isPreviewHelpOpen, setIsPreviewHelpOpen] = useState(false);
   const [draggingPage, setDraggingPage] = useState<number | null>(null);
   const [dragOverPage, setDragOverPage] = useState<number | null>(null);
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
@@ -69,6 +72,15 @@ export function App() {
     () => rows.filter((row) => row.pageNumber === activePage).sort((a, b) => a.order - b.order),
     [activePage, rows],
   );
+  const pageSpreads = useMemo(() => {
+    const spreads: typeof layouts[] = [];
+    if (layouts[0]) spreads.push([layouts[0]]);
+    for (let index = 1; index < layouts.length; index += 2) {
+      spreads.push(layouts.slice(index, index + 2));
+    }
+    return spreads;
+  }, [layouts]);
+  const pageCountWarning = layouts.length % 4 === 0 ? undefined : "ページ数が４の倍数でないです";
   const columnWarnings = useMemo(() => getColumnWarnings(activeRows), [activeRows]);
 
   useEffect(() => {
@@ -157,11 +169,14 @@ export function App() {
   }
 
   function selectRow(id: string, pageNumber: number) {
-    setSelectedRowId(id);
+    const shouldSelect = selectedRowId !== id;
+    setSelectedRowId(shouldSelect ? id : null);
     setActivePage(pageNumber);
-    window.requestAnimationFrame(() => {
-      rowRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    if (shouldSelect) {
+      window.requestAnimationFrame(() => {
+        rowRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
   }
 
   function togglePanelFrame(id: string) {
@@ -448,73 +463,178 @@ export function App() {
         </div>
       )}
 
+      {isPageHelpOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsPageHelpOpen(false)}>
+          <section
+            className="settings-modal page-help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="page-help-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <h2 id="page-help-title">ページ一覧</h2>
+              <button type="button" className="icon-button" onClick={() => setIsPageHelpOpen(false)} title={t.close}>
+                <X size={18} />
+              </button>
+            </div>
+            <p className="page-help-text">
+              各ページを選択して切り替えられます。
+              <br />
+              ゴミ箱ボタンを押すとページを削除できます。
+            </p>
+          </section>
+        </div>
+      )}
+
+      {isStoryboardHelpOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsStoryboardHelpOpen(false)}>
+          <section
+            className="settings-modal page-help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="storyboard-help-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <h2 id="storyboard-help-title">文字ネーム</h2>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setIsStoryboardHelpOpen(false)}
+                title={t.close}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="page-help-text">
+              １行＝１コマです。
+              <br />
+              各列を入力することで、自動的にネームにコマ割りが生成されます。
+              <br />
+              行＝コマの複製と削除もできます。
+              <br />
+              最下行の＋ボタンを押すと、行＝コマを追加できます。
+            </p>
+          </section>
+        </div>
+      )}
+
+      {isPreviewHelpOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsPreviewHelpOpen(false)}>
+          <section
+            className="settings-modal page-help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="preview-help-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <h2 id="preview-help-title">ネーム</h2>
+              <button type="button" className="icon-button" onClick={() => setIsPreviewHelpOpen(false)} title={t.close}>
+                <X size={18} />
+              </button>
+            </div>
+            <p className="page-help-text">
+              コマの幅と高さをドラッグで調節できます。
+              <br />
+              コマをクリックすると、文字ネームの該当行がハイライトされます。
+              <br />
+              コマをダブルクリックすると、コマ枠無しにできます。
+              <br />
+              外側のコマは、矢印をクリックすることで伸ばしたり縮めたりできます。
+              <br />
+              クリアボタンを押すと、自動生成されたコマ割りに戻ります。
+            </p>
+          </section>
+        </div>
+      )}
+
       <section className={`page-list-bar reading-${syncedProject.readingDirection}`} aria-label={t.pages}>
         <div className="page-list-header">
-          <h2>ページ一覧</h2>
+          <div className="page-list-title">
+            <h2>ページ一覧</h2>
+            <button
+              type="button"
+              className="help-button"
+              aria-label="ページ一覧の説明"
+              onClick={() => setIsPageHelpOpen(true)}
+            >
+              ?
+            </button>
+            {pageCountWarning && <WarningBadge warning={pageCountWarning} />}
+          </div>
         </div>
         <div className={`page-strip thumbnail-strip reading-${syncedProject.readingDirection}`}>
-          {layouts.map((layout) => (
-            <button
-              key={layout.pageNumber}
-              type="button"
-              draggable
-              className={`page-thumb ${layout.pageNumber === activePage ? "active" : ""} ${
-                layout.pageNumber === draggingPage ? "dragging" : ""
-              } ${layout.pageNumber === dragOverPage ? "drag-over" : ""}`}
-              onClick={() => setActivePage(layout.pageNumber)}
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", String(layout.pageNumber));
-                setDraggingPage(layout.pageNumber);
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-                setDragOverPage(layout.pageNumber);
-              }}
-              onDragLeave={() => {
-                setDragOverPage((current) => (current === layout.pageNumber ? null : current));
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                const source = Number(event.dataTransfer.getData("text/plain")) || draggingPage;
-                if (source) reorderPages(source, layout.pageNumber);
-                setDraggingPage(null);
-                setDragOverPage(null);
-              }}
-              onDragEnd={() => {
-                setDraggingPage(null);
-                setDragOverPage(null);
-              }}
+          {pageSpreads.map((spread) => (
+            <div
+              className={`page-spread reading-${syncedProject.readingDirection}`}
+              key={spread.map((layout) => layout.pageNumber).join("-")}
             >
-              <span className="thumb-heading">
-                {layout.pageNumber}
-                <span
-                  role="button"
-                  tabIndex={0}
-                  className="thumb-delete"
-                  title={t.deletePage}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    deletePage(layout.pageNumber);
+              {spread.map((layout) => (
+                <button
+                  key={layout.pageNumber}
+                  type="button"
+                  draggable
+                  className={`page-thumb ${layout.pageNumber === activePage ? "active" : ""} ${
+                    layout.pageNumber === draggingPage ? "dragging" : ""
+                  } ${layout.pageNumber === dragOverPage ? "drag-over" : ""}`}
+                  onClick={() => setActivePage(layout.pageNumber)}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", String(layout.pageNumber));
+                    setDraggingPage(layout.pageNumber);
                   }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
+                  onDragOver={(event) => {
                     event.preventDefault();
-                    event.stopPropagation();
-                    deletePage(layout.pageNumber);
+                    event.dataTransfer.dropEffect = "move";
+                    setDragOverPage(layout.pageNumber);
+                  }}
+                  onDragLeave={() => {
+                    setDragOverPage((current) => (current === layout.pageNumber ? null : current));
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const source = Number(event.dataTransfer.getData("text/plain")) || draggingPage;
+                    if (source) reorderPages(source, layout.pageNumber);
+                    setDraggingPage(null);
+                    setDragOverPage(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingPage(null);
+                    setDragOverPage(null);
                   }}
                 >
-                  <Trash2 size={14} />
-                </span>
-              </span>
-              <MiniPage
-                layout={layout}
-                readingDirection={syncedProject.readingDirection}
-                rowHeights={project.rowHeights?.[layout.pageNumber]}
-                rowWidths={project.rowWidths?.[layout.pageNumber]}
-              />
-            </button>
+                  <span className="thumb-heading">
+                    {layout.pageNumber}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="thumb-delete"
+                      title={t.deletePage}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deletePage(layout.pageNumber);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        deletePage(layout.pageNumber);
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </span>
+                  </span>
+                  <MiniPage
+                    layout={layout}
+                    readingDirection={syncedProject.readingDirection}
+                    rowHeights={project.rowHeights?.[layout.pageNumber]}
+                    rowWidths={project.rowWidths?.[layout.pageNumber]}
+                  />
+                </button>
+              ))}
+            </div>
           ))}
           <button type="button" className="page-thumb add-page-thumb" onClick={appendPage} title={t.addPage}>
             <Plus size={28} />
@@ -525,7 +645,17 @@ export function App() {
       <section className="workspace">
         <div className="editor-pane">
           <div className="editor-toolbar">
-            <h2>文字ネーム</h2>
+            <div className="page-list-title">
+              <h2>文字ネーム</h2>
+              <button
+                type="button"
+                className="help-button"
+                aria-label="文字ネームの説明"
+                onClick={() => setIsStoryboardHelpOpen(true)}
+              >
+                ?
+              </button>
+            </div>
           </div>
           <div className="storyboard-table-wrap">
             <table className="storyboard-table">
@@ -683,7 +813,17 @@ export function App() {
 
         <aside className="preview-pane">
           <div className="preview-toolbar">
-            <h2>ネーム</h2>
+            <div className="page-list-title">
+              <h2>ネーム</h2>
+              <button
+                type="button"
+                className="help-button"
+                aria-label="ネームの説明"
+                onClick={() => setIsPreviewHelpOpen(true)}
+              >
+                ?
+              </button>
+            </div>
             <button type="button" className="button preview-clear-button" onClick={clearActivePageLayoutAdjustments}>
               クリア
             </button>

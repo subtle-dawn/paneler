@@ -161,6 +161,11 @@ button {
   font-size: 20px;
 }
 
+.page-help-text {
+  line-height: 1.7;
+  margin: 0;
+}
+
 .settings-field {
   display: grid;
   gap: 7px;
@@ -332,6 +337,33 @@ button {
   width: 100%;
 }
 
+.page-list-title {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.help-button {
+  align-items: center;
+  background: #fffdfa;
+  border: 1px solid #c9beb0;
+  border-radius: 50%;
+  color: #625c52;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 24px;
+}
+
+.help-button:hover {
+  background: #f6efe3;
+  color: #211f1a;
+}
+
 .page-list-bar.reading-rtl {
   justify-items: end;
 }
@@ -343,7 +375,7 @@ button {
 
 .page-strip {
   display: flex;
-  gap: 12px;
+  gap: 22px;
   grid-column: 1 / -1;
   justify-self: stretch;
   min-width: 0;
@@ -358,6 +390,32 @@ button {
 }
 
 .page-strip.reading-ltr {
+  flex-direction: row;
+}
+
+.page-spread {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding-right: 22px;
+  position: relative;
+}
+
+.page-spread::after {
+  background: #c9beb0;
+  bottom: 8px;
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 8px;
+  width: 1px;
+}
+
+.page-spread.reading-rtl {
+  flex-direction: row-reverse;
+}
+
+.page-spread.reading-ltr {
   flex-direction: row;
 }
 
