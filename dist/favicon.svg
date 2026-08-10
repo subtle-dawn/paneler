@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Paneler">
+  <rect width="64" height="64" rx="10" fill="#fffdfa"/>
+  <path d="M8 7h36l12 12v38H8z" fill="#fffdfa" stroke="#050505" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M44 7v12h12" fill="none" stroke="#050505" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="14" y="15" width="20" height="16" rx="2" fill="#fffdfa" stroke="#050505" stroke-width="3"/>
+  <rect x="39" y="24" width="11" height="7" rx="1.5" fill="#fffdfa" stroke="#050505" stroke-width="3"/>
+  <rect x="14" y="37" width="36" height="14" rx="2" fill="#fffdfa" stroke="#050505" stroke-width="3"/>
+  <circle cx="24" cy="23" r="5" fill="#fffdfa" stroke="#050505" stroke-width="3"/>
+</svg>

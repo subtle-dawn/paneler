@@ -457,16 +457,11 @@ button {
 }
 
 .mini-page.side-mark-left .mini-side-mark {
-  left: -10px;
+  left: 2px;
 }
 
 .mini-page.side-mark-right .mini-side-mark {
-  right: -10px;
-}
-
-.mini-side-mark {
-  height: 8px;
-  width: 8px;
+  right: 2px;
 }
 
 .mini-side-mark span,
