@@ -1,5 +1,9 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
   Copy,
   ChevronDown,
   FileSpreadsheet,
@@ -20,7 +24,7 @@ import {
 } from "./io";
 import { rowsToLayouts } from "./layout";
 import { createDefaultProject, createPanelRow, loadProject, projectToRows, rowsToProject, saveProject } from "./storage";
-import type { EmotionSize, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
+import type { BleedSide, EmotionSize, LayoutPanel, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
 
 const sizeOptions: Size[] = ["extraSmall", "small", "medium", "large", "extraLarge", "fullPage"];
 const shapeOptions: Shape[] = ["square", "vertical", "horizontal"];
@@ -31,6 +35,8 @@ const minRowHeightWeight = 0.25;
 const minColumnWidthWeight = 0.25;
 const horizontalRowHeightWeight = 0.6;
 const gridColumnCount = 6;
+const pageBorderBleedAmount = 40;
+const miniPageBorderBleedAmount = 4;
 
 export function App() {
   const [project, setProject] = useState<Project>(() => loadProject() ?? createDefaultProject());
@@ -125,6 +131,23 @@ export function App() {
     setStatus(t.edited);
     setRows((current) =>
       current.map((row) => (row.id === id ? { ...row, isFrameHidden: !row.isFrameHidden } : row)).map(normalizeOrder),
+    );
+  }
+
+  function togglePanelBleed(id: string, side: BleedSide, blockedSide: "left" | "right") {
+    if (side === blockedSide) return;
+
+    setStatus(t.edited);
+    setRows((current) =>
+      current
+        .map((row) => {
+          if (row.id !== id) return row;
+
+          const bleed = { ...(row.bleed ?? {}) };
+          bleed[side] = !bleed[side];
+          return { ...row, bleed };
+        })
+        .map(normalizeOrder),
     );
   }
 
@@ -613,6 +636,7 @@ export function App() {
                 selectedPanelId={selectedRowId}
                 onPanelSelect={selectRow}
                 onPanelFrameToggle={togglePanelFrame}
+                onPanelBleedToggle={togglePanelBleed}
                 onRowResize={(nextHeights) => updateRowHeights(activeLayout.pageNumber, nextHeights)}
                 onColumnResize={(rowIndex, nextWidths) => updateRowWidths(activeLayout.pageNumber, rowIndex, nextWidths)}
                 register={(node) => {
@@ -654,6 +678,7 @@ function PagePreview({
   selectedPanelId,
   onPanelSelect,
   onPanelFrameToggle,
+  onPanelBleedToggle,
   onRowResize,
   onColumnResize,
   register,
@@ -665,6 +690,7 @@ function PagePreview({
   selectedPanelId: string | null;
   onPanelSelect: (id: string, pageNumber: number) => void;
   onPanelFrameToggle: (id: string) => void;
+  onPanelBleedToggle: (id: string, side: BleedSide, blockedSide: "left" | "right") => void;
   onRowResize: (nextHeights: number[]) => void;
   onColumnResize: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
@@ -679,6 +705,7 @@ function PagePreview({
         selectedPanelId={selectedPanelId}
         onPanelSelect={onPanelSelect}
         onPanelFrameToggle={onPanelFrameToggle}
+        onPanelBleedToggle={onPanelBleedToggle}
         onRowResize={onRowResize}
         onColumnResize={onColumnResize}
         register={register}
@@ -695,6 +722,7 @@ function PageCanvas({
   selectedPanelId,
   onPanelSelect,
   onPanelFrameToggle,
+  onPanelBleedToggle,
   onRowResize,
   onColumnResize,
   register,
@@ -706,6 +734,7 @@ function PageCanvas({
   selectedPanelId?: string | null;
   onPanelSelect?: (id: string, pageNumber: number) => void;
   onPanelFrameToggle?: (id: string) => void;
+  onPanelBleedToggle?: (id: string, side: BleedSide, blockedSide: "left" | "right") => void;
   onRowResize?: (nextHeights: number[]) => void;
   onColumnResize?: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
@@ -714,6 +743,7 @@ function PageCanvas({
   const normalizedRowHeights = normalizeRowHeights(rowHeights, layout.rows);
   const normalizedRowWidths = normalizeRowWidths(rowWidths, layout.rows.length);
   const sideMarkPosition = getSideMarkPosition(layout.pageNumber, readingDirection);
+  const canEditPanelBleed = Boolean(onPanelBleedToggle);
 
   function setPageNode(node: HTMLDivElement | null) {
     pageRef.current = node;
@@ -816,29 +846,18 @@ function PageCanvas({
             }}
           >
           {row.panels.map((panel) => (
-            <article
+            <PanelArticle
               key={panel.id}
-              className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""} ${
-                panel.isFrameHidden ? "frame-hidden" : ""
-              }`}
+              panel={panel}
+              selectedPanelId={selectedPanelId}
+              sideMarkPosition={sideMarkPosition}
+              allowedBleedSides={getPanelAllowedBleedSides(panel, rowIndex, layout.rows.length, sideMarkPosition)}
+              canEditPanelBleed={canEditPanelBleed}
               style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }}
-              onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
-              onDoubleClick={() => onPanelFrameToggle?.(panel.id)}
-            >
-              <div className="panel-number" data-export-text>
-                {panel.visualNumber}
-              </div>
-              <div className="panel-meta" data-export-text>
-                {sizeLabel[panel.panelSize]}{t.panelSeparator}{shapeLabel[panel.shape]}
-                {panel.camera ? `${t.panelSeparator}${panel.camera}` : ""}
-              </div>
-              {panel.role && (
-                <div className="panel-role" data-export-text>
-                  {panel.role}
-                </div>
-              )}
-              <p data-export-text>{panel.content}</p>
-            </article>
+              onPanelSelect={onPanelSelect}
+              onPanelFrameToggle={onPanelFrameToggle}
+              onPanelBleedToggle={onPanelBleedToggle}
+            />
           ))}
             {row.stacks?.map((stack, stackIndex) => (
               <div
@@ -846,29 +865,24 @@ function PageCanvas({
                 key={stackIndex}
                 style={{ gridColumn: `${stack.colStart} / span ${stack.colSpan}`, gridRow: 1 }}
               >
-                {stack.panels.map((panel) => (
-                  <article
+                {stack.panels.map((panel, panelIndex) => (
+                  <PanelArticle
                     key={panel.id}
-                    className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""} ${
-                      panel.isFrameHidden ? "frame-hidden" : ""
-                    }`}
-                    onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
-                    onDoubleClick={() => onPanelFrameToggle?.(panel.id)}
-                  >
-                    <div className="panel-number" data-export-text>
-                      {panel.visualNumber}
-                    </div>
-                    <div className="panel-meta" data-export-text>
-                      {sizeLabel[panel.panelSize]}{t.panelSeparator}{shapeLabel[panel.shape]}
-                      {panel.camera ? `${t.panelSeparator}${panel.camera}` : ""}
-                    </div>
-                    {panel.role && (
-                      <div className="panel-role" data-export-text>
-                        {panel.role}
-                      </div>
+                    panel={panel}
+                    selectedPanelId={selectedPanelId}
+                    sideMarkPosition={sideMarkPosition}
+                    allowedBleedSides={getStackPanelAllowedBleedSides(
+                      stack,
+                      panelIndex,
+                      rowIndex,
+                      layout.rows.length,
+                      sideMarkPosition,
                     )}
-                    <p data-export-text>{panel.content}</p>
-                  </article>
+                    canEditPanelBleed={canEditPanelBleed}
+                    onPanelSelect={onPanelSelect}
+                    onPanelFrameToggle={onPanelFrameToggle}
+                    onPanelBleedToggle={onPanelBleedToggle}
+                  />
                 ))}
               </div>
             ))}
@@ -901,6 +915,78 @@ function PageCanvas({
   );
 }
 
+function PanelArticle({
+  panel,
+  selectedPanelId,
+  sideMarkPosition,
+  allowedBleedSides,
+  canEditPanelBleed,
+  style,
+  onPanelSelect,
+  onPanelFrameToggle,
+  onPanelBleedToggle,
+}: {
+  panel: LayoutPanel;
+  selectedPanelId?: string | null;
+  sideMarkPosition: "left" | "right";
+  allowedBleedSides: BleedSide[];
+  canEditPanelBleed: boolean;
+  style?: CSSProperties;
+  onPanelSelect?: (id: string, pageNumber: number) => void;
+  onPanelFrameToggle?: (id: string) => void;
+  onPanelBleedToggle?: (id: string, side: BleedSide, blockedSide: "left" | "right") => void;
+}) {
+  const isSelected = panel.id === selectedPanelId;
+  const bleedStyle = getPanelBleedStyle(panel.bleed, sideMarkPosition, pageBorderBleedAmount, allowedBleedSides);
+  const bleedEdgeClasses = getBleedEdgeClassName(panel.bleed, allowedBleedSides);
+
+  return (
+    <article
+      className={`panel-frame ${panel.shape} ${bleedEdgeClasses} ${isSelected ? "selected-panel" : ""} ${
+        panel.isFrameHidden ? "frame-hidden" : ""
+      }`}
+      style={{ ...style, ...bleedStyle }}
+      onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
+      onDoubleClick={() => onPanelFrameToggle?.(panel.id)}
+    >
+      <div className="panel-number" data-export-text>
+        {panel.visualNumber}
+      </div>
+      <div className="panel-meta" data-export-text>
+        {sizeLabel[panel.panelSize]}{t.panelSeparator}{shapeLabel[panel.shape]}
+        {panel.camera ? `${t.panelSeparator}${panel.camera}` : ""}
+      </div>
+      {panel.role && (
+        <div className="panel-role" data-export-text>
+          {panel.role}
+        </div>
+      )}
+      <p data-export-text>{panel.content}</p>
+      {canEditPanelBleed && isSelected && (
+        <div className="bleed-controls" onClick={(event) => event.stopPropagation()}>
+          {allowedBleedSides.map((side) => {
+            const control = getBleedControl(side);
+            const Icon = control.icon;
+
+            return (
+              <button
+                key={side}
+                type="button"
+                className={`bleed-button bleed-${side} ${panel.bleed?.[side] ? "active" : ""}`}
+                title={control.label}
+                aria-label={control.label}
+                onClick={() => onPanelBleedToggle?.(panel.id, side, sideMarkPosition)}
+              >
+                <Icon size={13} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function MiniPage({
   layout,
   readingDirection,
@@ -928,22 +1014,54 @@ function MiniPage({
             className="mini-row"
             style={{ gridTemplateColumns: normalizedRowWidths[rowIndex].map((weight) => `${weight}fr`).join(" ") }}
           >
-            {row.panels.map((panel) => (
-              <span
-                key={panel.id}
-                className={panel.isFrameHidden ? "frame-hidden" : ""}
-                style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }}
-              />
-            ))}
+            {row.panels.map((panel) => {
+              const allowedBleedSides = getPanelAllowedBleedSides(panel, rowIndex, layout.rows.length, sideMarkPosition);
+
+              return (
+                <span
+                  key={panel.id}
+                  className={`${panel.isFrameHidden ? "frame-hidden" : ""} ${getBleedEdgeClassName(panel.bleed, allowedBleedSides)}`}
+                  style={{
+                    gridColumn: `${panel.colStart} / span ${panel.colSpan}`,
+                    gridRow: 1,
+                    ...getPanelBleedStyle(
+                      panel.bleed,
+                      sideMarkPosition,
+                      miniPageBorderBleedAmount,
+                      allowedBleedSides,
+                    ),
+                  }}
+                />
+              );
+            })}
             {row.stacks?.map((stack, stackIndex) => (
               <span
                 className="mini-stack"
                 key={`stack-${stackIndex}`}
                 style={{ gridColumn: `${stack.colStart} / span ${stack.colSpan}`, gridRow: 1 }}
               >
-                {stack.panels.map((panel) => (
-                  <i key={panel.id} className={panel.isFrameHidden ? "frame-hidden" : ""} />
-                ))}
+                {stack.panels.map((panel, panelIndex) => {
+                  const allowedBleedSides = getStackPanelAllowedBleedSides(
+                    stack,
+                    panelIndex,
+                    rowIndex,
+                    layout.rows.length,
+                    sideMarkPosition,
+                  );
+
+                  return (
+                    <i
+                      key={panel.id}
+                      className={`${panel.isFrameHidden ? "frame-hidden" : ""} ${getBleedEdgeClassName(panel.bleed, allowedBleedSides)}`}
+                      style={getPanelBleedStyle(
+                        panel.bleed,
+                        sideMarkPosition,
+                        miniPageBorderBleedAmount,
+                        allowedBleedSides,
+                      )}
+                    />
+                  );
+                })}
               </span>
             ))}
           </div>
@@ -1008,6 +1126,82 @@ function normalizeRowWidths(rowWidths: number[][] | undefined, rowCount: number)
 function getSideMarkPosition(pageNumber: number, readingDirection: Project["readingDirection"]) {
   const isLeftPage = readingDirection === "rtl" ? pageNumber % 2 === 1 : pageNumber % 2 === 0;
   return isLeftPage ? "right" : "left";
+}
+
+function getPanelBleedStyle(
+  bleed: LayoutPanel["bleed"],
+  blockedSide: "left" | "right",
+  amount: number,
+  allowedSides: BleedSide[],
+): CSSProperties {
+  if (!bleed || allowedSides.length === 0) return {};
+  const outerSide = getOuterBleedSide(blockedSide);
+
+  return {
+    marginTop: allowedSides.includes("top") && bleed.top ? -amount : undefined,
+    marginRight: outerSide === "right" && allowedSides.includes("right") && bleed.right ? -amount : undefined,
+    marginBottom: allowedSides.includes("bottom") && bleed.bottom ? -amount : undefined,
+    marginLeft: outerSide === "left" && allowedSides.includes("left") && bleed.left ? -amount : undefined,
+    zIndex: allowedSides.some((side) => bleed[side]) ? 1 : undefined,
+  };
+}
+
+function getActiveBleedSides(bleed: LayoutPanel["bleed"], allowedSides: BleedSide[]) {
+  if (!bleed) return [];
+  return allowedSides.filter((side) => bleed[side]);
+}
+
+function getBleedEdgeClassName(bleed: LayoutPanel["bleed"], allowedSides: BleedSide[]) {
+  return getActiveBleedSides(bleed, allowedSides)
+    .map((side) => `bleed-edge-${side}`)
+    .join(" ");
+}
+
+function getOuterBleedSide(blockedSide: "left" | "right"): "left" | "right" {
+  return blockedSide === "left" ? "right" : "left";
+}
+
+function getBleedControl(side: BleedSide) {
+  if (side === "top") return { label: "ページ上端まで伸ばす", icon: ArrowUp };
+  if (side === "bottom") return { label: "ページ下端まで伸ばす", icon: ArrowDown };
+  return side === "left"
+    ? { label: "ページ外側まで伸ばす", icon: ArrowLeft }
+    : { label: "ページ外側まで伸ばす", icon: ArrowRight };
+}
+
+function getPanelAllowedBleedSides(
+  panel: LayoutPanel,
+  rowIndex: number,
+  rowCount: number,
+  blockedSide: "left" | "right",
+) {
+  const sides: BleedSide[] = [];
+  const outerSide = getOuterBleedSide(blockedSide);
+
+  if (rowIndex === 0) sides.push("top");
+  if (rowIndex === rowCount - 1) sides.push("bottom");
+  if (outerSide === "left" && panel.colStart === 1) sides.push("left");
+  if (outerSide === "right" && panel.colStart + panel.colSpan - 1 === gridColumnCount) sides.push("right");
+
+  return sides;
+}
+
+function getStackPanelAllowedBleedSides(
+  stack: NonNullable<LayoutRow["stacks"]>[number],
+  panelIndex: number,
+  rowIndex: number,
+  rowCount: number,
+  blockedSide: "left" | "right",
+) {
+  const sides: BleedSide[] = [];
+  const outerSide = getOuterBleedSide(blockedSide);
+
+  if (rowIndex === 0 && panelIndex === 0) sides.push("top");
+  if (rowIndex === rowCount - 1 && panelIndex === stack.panels.length - 1) sides.push("bottom");
+  if (outerSide === "left" && stack.colStart === 1) sides.push("left");
+  if (outerSide === "right" && stack.colStart + stack.colSpan - 1 === gridColumnCount) sides.push("right");
+
+  return sides;
 }
 
 function getColumnBoundaries(row: LayoutRow) {

@@ -2,6 +2,8 @@ export type ReadingDirection = "rtl" | "ltr";
 export type EmotionSize = "small" | "medium" | "large" | null;
 export type Size = "extraSmall" | "small" | "medium" | "large" | "extraLarge" | "fullPage";
 export type Shape = "vertical" | "square" | "horizontal";
+export type BleedSide = "top" | "right" | "bottom" | "left";
+export type PanelBleed = Partial<Record<BleedSide, boolean>>;
 
 export type Panel = {
   id: string;
@@ -12,6 +14,7 @@ export type Panel = {
   camera: string;
   content: string;
   isFrameHidden?: boolean;
+  bleed?: PanelBleed;
   order: number;
 };
 

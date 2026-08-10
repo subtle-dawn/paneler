@@ -339,7 +339,7 @@ function renderPageToCanvas(pageEl: HTMLElement) {
     ctx.strokeStyle = "#181611";
     ctx.lineWidth = 2;
     ctx.fillRect(x, y, width, height);
-    if (!isFrameHidden) ctx.strokeRect(x, y, width, height);
+    if (!isFrameHidden) strokePanelFrame(ctx, panelEl, x, y, width, height);
 
     const lines = Array.from(panelEl.querySelectorAll<HTMLElement>("[data-export-text]")).map((node) =>
       node.innerText.trim(),
@@ -354,6 +354,34 @@ function renderPageToCanvas(pageEl: HTMLElement) {
   });
 
   return canvas;
+}
+
+function strokePanelFrame(
+  ctx: CanvasRenderingContext2D,
+  panelEl: HTMLElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  ctx.beginPath();
+  if (!panelEl.classList.contains("bleed-edge-top")) {
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + width, y);
+  }
+  if (!panelEl.classList.contains("bleed-edge-right")) {
+    ctx.moveTo(x + width, y);
+    ctx.lineTo(x + width, y + height);
+  }
+  if (!panelEl.classList.contains("bleed-edge-bottom")) {
+    ctx.moveTo(x + width, y + height);
+    ctx.lineTo(x, y + height);
+  }
+  if (!panelEl.classList.contains("bleed-edge-left")) {
+    ctx.moveTo(x, y + height);
+    ctx.lineTo(x, y);
+  }
+  ctx.stroke();
 }
 
 function rowsFromTable(table: string[][]): PanelRow[] {
