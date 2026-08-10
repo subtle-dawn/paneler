@@ -977,6 +977,42 @@ h2 {
   min-width: 0;
 }
 
+.storyboard-table .excel-tone-green,
+.storyboard-table option.excel-tone-green {
+  background-color: #c6efce;
+  border-color: #8cc89a;
+  color: #006100;
+}
+
+.storyboard-table .excel-tone-yellow,
+.storyboard-table option.excel-tone-yellow {
+  background-color: #ffeb9c;
+  border-color: #d9b85f;
+  color: #9c5700;
+}
+
+.storyboard-table .excel-tone-red,
+.storyboard-table option.excel-tone-red {
+  background-color: #ffc7ce;
+  border-color: #d58c94;
+  color: #9c0006;
+}
+
+.storyboard-table select.excel-tone-green:focus,
+.storyboard-table input.excel-tone-green:focus {
+  outline: 2px solid rgba(0, 97, 0, 0.22);
+}
+
+.storyboard-table select.excel-tone-yellow:focus,
+.storyboard-table input.excel-tone-yellow:focus {
+  outline: 2px solid rgba(156, 87, 0, 0.24);
+}
+
+.storyboard-table select.excel-tone-red:focus,
+.storyboard-table input.excel-tone-red:focus {
+  outline: 2px solid rgba(156, 0, 6, 0.22);
+}
+
 .cell-control {
   display: grid;
   gap: 3px;

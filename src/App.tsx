@@ -41,6 +41,44 @@ const pageBorderBleedAmount = 40;
 const miniPageBorderBleedAmount = 4;
 type DownloadFormat = "png" | "pdf";
 type DownloadScope = "active" | "all";
+type ExcelTone = "green" | "yellow" | "red";
+
+const sizeTone: Partial<Record<Size, ExcelTone>> = {
+  extraSmall: "green",
+  small: "green",
+  medium: "yellow",
+  large: "red",
+  extraLarge: "red",
+};
+
+const emotionTone: Partial<Record<NonNullable<EmotionSize>, ExcelTone>> = {
+  small: "green",
+  medium: "yellow",
+  large: "red",
+};
+
+const shapeTone: Record<Shape, ExcelTone> = {
+  vertical: "yellow",
+  square: "green",
+  horizontal: "yellow",
+};
+
+const faceSizeTone: Partial<Record<FaceSize, ExcelTone>> = {
+  extraSmall: "green",
+  small: "green",
+  medium: "yellow",
+  large: "red",
+  extraLarge: "red",
+};
+
+const cameraToneByIndex: Partial<Record<number, ExcelTone>> = {
+  0: "green",
+  1: "red",
+  2: "red",
+  3: "yellow",
+  4: "yellow",
+  5: "yellow",
+};
 
 export function App() {
   const [project, setProject] = useState<Project>(() => loadProject() ?? createDefaultProject());
@@ -835,10 +873,11 @@ export function App() {
                           <SelectCell
                             value={row.emotionSize ?? "small"}
                             warning={row.warnings?.emotionSize}
+                            tone={row.emotionSize ? emotionTone[row.emotionSize] : undefined}
                             onChange={(value) => updateRow(row.id, { emotionSize: value as NonNullable<EmotionSize> })}
                           >
                             {emotionOptions.map((value) => (
-                              <option key={value} value={value}>
+                              <option key={value} value={value} className={excelToneClass(emotionTone[value])}>
                                 {emotionLabel[value]}
                               </option>
                             ))}
@@ -848,10 +887,11 @@ export function App() {
                           <SelectCell
                             value={row.panelSize}
                             warning={row.warnings?.panelSize}
+                            tone={sizeTone[row.panelSize]}
                             onChange={(value) => updateRow(row.id, { panelSize: value as Size })}
                           >
                             {sizeOptions.map((value) => (
-                              <option key={value} value={value}>
+                              <option key={value} value={value} className={excelToneClass(sizeTone[value])}>
                                 {sizeLabel[value]}
                               </option>
                             ))}
@@ -859,6 +899,7 @@ export function App() {
                         </td>
                         <td>
                           <input
+                            className={excelToneClass(roleTone(row.role))}
                             list="role-options"
                             value={row.role}
                             onChange={(event) => updateRow(row.id, { role: event.target.value })}
@@ -868,10 +909,11 @@ export function App() {
                           <SelectCell
                             value={row.shape}
                             warning={row.warnings?.shape}
+                            tone={shapeTone[row.shape]}
                             onChange={(value) => updateRow(row.id, { shape: value as Shape })}
                           >
                             {shapeOptions.map((value) => (
-                              <option key={value} value={value}>
+                              <option key={value} value={value} className={excelToneClass(shapeTone[value])}>
                                 {shapeLabel[value]}
                               </option>
                             ))}
@@ -880,10 +922,11 @@ export function App() {
                         <td>
                           <SelectCell
                             value={cameraOptions.includes(row.camera as (typeof cameraOptions)[number]) ? row.camera : cameraOptions[0]}
+                            tone={cameraTone(row.camera)}
                             onChange={(value) => updateRow(row.id, { camera: value })}
                           >
-                            {cameraOptions.map((value) => (
-                              <option key={value} value={value}>
+                            {cameraOptions.map((value, index) => (
+                              <option key={value} value={value} className={excelToneClass(cameraToneByIndex[index])}>
                                 {value}
                               </option>
                             ))}
@@ -893,10 +936,11 @@ export function App() {
                           <SelectCell
                             value={row.faceSize ?? "medium"}
                             warning={row.warnings?.faceSize}
+                            tone={faceSizeTone[row.faceSize ?? "medium"]}
                             onChange={(value) => updateRow(row.id, { faceSize: value as FaceSize })}
                           >
                             {faceSizeOptions.map((value) => (
-                              <option key={value} value={value}>
+                              <option key={value} value={value} className={excelToneClass(faceSizeTone[value])}>
                                 {faceSizeLabel[value]}
                               </option>
                             ))}
@@ -1034,7 +1078,7 @@ export function App() {
       </div>
       <datalist id="role-options">
         {roleOptions.map((value) => (
-          <option key={value} value={value} />
+          <option key={value} value={value} className={excelToneClass(roleTone(value))} />
         ))}
       </datalist>
     </main>
@@ -1455,22 +1499,41 @@ function MiniPage({
 function SelectCell({
   value,
   warning,
+  tone,
   onChange,
   children,
 }: {
   value: string;
   warning?: string;
+  tone?: ExcelTone;
   onChange: (value: string) => void;
   children: React.ReactNode;
 }) {
   return (
     <label className="cell-control">
-      <select className={warning ? "invalid" : ""} value={value} onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)}>
+      <select className={[warning ? "invalid" : "", excelToneClass(tone)].filter(Boolean).join(" ")} value={value} onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)}>
         {children}
       </select>
       {warning && <span>{warning}</span>}
     </label>
   );
+}
+
+function excelToneClass(tone?: ExcelTone) {
+  return tone ? `excel-tone-${tone}` : "";
+}
+
+function cameraTone(value: string) {
+  const index = cameraOptions.findIndex((option) => option === value);
+  return index >= 0 ? cameraToneByIndex[index] : undefined;
+}
+
+function roleTone(value: string): ExcelTone | undefined {
+  if (!value) return undefined;
+  if (value.includes(roleOptionLabels[3])) return "red";
+  if (value.includes(roleOptionLabels[4])) return "yellow";
+  if (value.includes(roleOptionLabels[1]) || value.includes(roleOptionLabels[2])) return "green";
+  return undefined;
 }
 
 function HeaderLabel({ label, warning }: { label: string; warning?: string }) {
