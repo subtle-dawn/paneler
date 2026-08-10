@@ -464,6 +464,22 @@ button {
   width: 1px;
 }
 
+.page-spread.reading-rtl:first-child::after {
+  display: none;
+}
+
+.page-spread.reading-rtl:first-child {
+  padding-right: 0;
+}
+
+.page-spread.reading-ltr:last-of-type::after {
+  display: none;
+}
+
+.page-spread.reading-ltr:last-of-type {
+  padding-right: 0;
+}
+
 .page-spread.reading-rtl {
   flex-direction: row-reverse;
 }
