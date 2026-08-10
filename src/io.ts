@@ -4,6 +4,8 @@ import type { EmotionSize, FaceSize, PanelRow, Project, Shape, Size } from "./ty
 
 type RawSheetRow = Record<string, unknown>;
 const STORYBOARD_TEMPLATE_URL = "/templates/storyboard-template.xlsx";
+const jsonSheetName = "JSON";
+const jsonChunkLength = 30000;
 const exportDpi = 600;
 const millimetersPerInch = 25.4;
 const exportPageWidth = 5196;
@@ -44,9 +46,9 @@ export function downloadJson(project: Project) {
   downloadBlob(`${safeFileName(project.title)}.json`, JSON.stringify(project, null, 2), "application/json");
 }
 
-export async function downloadStoryboardXlsx(rows: PanelRow[], title: string) {
+export async function downloadStoryboardXlsx(rows: PanelRow[], title: string, project?: Project) {
   const table = storyboardRowsForExport(rows);
-  const data = await buildStoryboardTemplateXlsx(table);
+  const data = await buildStoryboardTemplateXlsx(table, project);
   downloadBlob(
     `${safeFileName(title)}_文字ネーム.xlsx`,
     data,
@@ -116,7 +118,7 @@ async function loadStoryboardTemplateWorkbook(xlsx: typeof import("xlsx")) {
   return xlsx.read(await response.arrayBuffer(), { cellStyles: true });
 }
 
-async function buildStoryboardTemplateXlsx(table: string[][]) {
+async function buildStoryboardTemplateXlsx(table: string[][], project?: Project) {
   const fflate = await import("fflate");
   const response = await fetch(STORYBOARD_TEMPLATE_URL);
   if (!response.ok) throw new Error("文字ネームテンプレートを読み込めませんでした");
@@ -127,7 +129,138 @@ async function buildStoryboardTemplateXlsx(table: string[][]) {
   const nextSheetXml = replaceSheetData(sheetXml, table);
 
   archive[sheetPath] = fflate.strToU8(nextSheetXml);
+  if (project) addJsonSheetToArchive(archive, JSON.stringify(project, null, 2), fflate);
   return fflate.zipSync(archive, { level: 6 });
+}
+
+function addJsonSheetToArchive(
+  archive: Record<string, Uint8Array>,
+  json: string,
+  fflate: typeof import("fflate"),
+) {
+  const workbookPath = "xl/workbook.xml";
+  const workbookRelsPath = "xl/_rels/workbook.xml.rels";
+  const contentTypesPath = "[Content_Types].xml";
+  const workbookXml = fflate.strFromU8(archive[workbookPath]);
+  const workbookRelsXml = fflate.strFromU8(archive[workbookRelsPath]);
+  const contentTypesXml = fflate.strFromU8(archive[contentTypesPath]);
+  const existingJsonSheet = findWorkbookSheet(workbookXml, jsonSheetName);
+  if (existingJsonSheet) {
+    const target = findRelationshipTarget(workbookRelsXml, existingJsonSheet.relationshipId);
+    if (target) {
+      archive[workbookTargetPath(target)] = fflate.strToU8(jsonWorksheetXml(json));
+      archive[workbookPath] = fflate.strToU8(ensureSheetHidden(workbookXml, existingJsonSheet.sheetXml));
+      return;
+    }
+  }
+
+  const existingSheetNames = Array.from(workbookXml.matchAll(/<sheet\b[^>]*\bname="([^"]+)"/g)).map((match) =>
+    unescapeXmlAttribute(match[1]),
+  );
+  const sheetName = uniqueSheetName(jsonSheetName, existingSheetNames);
+  const nextSheetNumber = nextNumericSuffix(Object.keys(archive), /^xl\/worksheets\/sheet(\d+)\.xml$/);
+  const nextSheetId = nextNumericSuffixFromXml(workbookXml, /sheetId="(\d+)"/g);
+  const nextRelationshipId = uniqueRelationshipId(workbookRelsXml);
+
+  archive[`xl/worksheets/sheet${nextSheetNumber}.xml`] = fflate.strToU8(jsonWorksheetXml(json));
+  archive[workbookPath] = fflate.strToU8(
+    workbookXml.replace(
+      "</sheets>",
+      `<sheet name="${escapeXmlAttribute(sheetName)}" sheetId="${nextSheetId}" state="hidden" r:id="${nextRelationshipId}"/></sheets>`,
+    ),
+  );
+  archive[workbookRelsPath] = fflate.strToU8(
+    workbookRelsXml.replace(
+      "</Relationships>",
+      `<Relationship Id="${nextRelationshipId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${nextSheetNumber}.xml"/></Relationships>`,
+    ),
+  );
+  archive[contentTypesPath] = fflate.strToU8(
+    contentTypesXml.replace(
+      "</Types>",
+      `<Override PartName="/xl/worksheets/sheet${nextSheetNumber}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+    ),
+  );
+}
+
+function findWorkbookSheet(workbookXml: string, sheetName: string) {
+  const sheetXmls = Array.from(workbookXml.matchAll(/<sheet\b[^>]*\/>/g)).map((match) => match[0]);
+  const sheetXml = sheetXmls.find((xml) => normalizeSheetName(unescapeXmlAttribute(xmlAttribute(xml, "name") ?? "")) === normalizeSheetName(sheetName));
+  const relationshipId = sheetXml ? xmlAttribute(sheetXml, "r:id") : undefined;
+  return sheetXml && relationshipId ? { sheetXml, relationshipId } : undefined;
+}
+
+function findRelationshipTarget(workbookRelsXml: string, relationshipId: string) {
+  const relationshipXmls = Array.from(workbookRelsXml.matchAll(/<Relationship\b[^>]*\/>/g)).map((match) => match[0]);
+  const relationshipXml = relationshipXmls.find((xml) => xmlAttribute(xml, "Id") === relationshipId);
+  return relationshipXml ? xmlAttribute(relationshipXml, "Target") : undefined;
+}
+
+function workbookTargetPath(target: string) {
+  if (target.startsWith("/xl/")) return target.slice(1);
+  if (target.startsWith("xl/")) return target;
+  return `xl/${target.replace(/^\.\//, "")}`;
+}
+
+function ensureSheetHidden(workbookXml: string, sheetXml: string) {
+  const hiddenSheetXml = /\bstate=/.test(sheetXml)
+    ? sheetXml.replace(/\bstate="[^"]*"/, `state="hidden"`)
+    : sheetXml.replace(/\s*\/>$/, ` state="hidden"/>`);
+  return workbookXml.replace(sheetXml, hiddenSheetXml);
+}
+
+function xmlAttribute(xml: string, name: string) {
+  return xml.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
+}
+
+function jsonWorksheetXml(json: string) {
+  const chunks = json.match(new RegExp(`[\\s\\S]{1,${jsonChunkLength}}`, "g")) ?? [""];
+  const rows = chunks
+    .map((chunk, index) => {
+      const rowNumber = index + 1;
+      return `<row r="${rowNumber}"><c r="A${rowNumber}" t="inlineStr"><is><t>${escapeXml(chunk)}</t></is></c></row>`;
+    })
+    .join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:A${chunks.length}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="120" customWidth="1"/></cols><sheetData>${rows}</sheetData></worksheet>`;
+}
+
+function nextNumericSuffix(paths: string[], pattern: RegExp) {
+  const max = paths.reduce((found, path) => Math.max(found, Number(path.match(pattern)?.[1] ?? 0)), 0);
+  return max + 1;
+}
+
+function nextNumericSuffixFromXml(xml: string, pattern: RegExp) {
+  const max = Array.from(xml.matchAll(pattern)).reduce((found, match) => Math.max(found, Number(match[1])), 0);
+  return max + 1;
+}
+
+function uniqueRelationshipId(workbookRelsXml: string) {
+  const used = new Set(Array.from(workbookRelsXml.matchAll(/Id="([^"]+)"/g)).map((match) => match[1]));
+  let index = nextNumericSuffixFromXml(workbookRelsXml, /Id="rId(\d+)"/g);
+  while (used.has(`rId${index}`)) index += 1;
+  return `rId${index}`;
+}
+
+function uniqueSheetName(baseName: string, existingNames: string[]) {
+  if (!existingNames.includes(baseName)) return baseName;
+
+  let index = 2;
+  while (existingNames.includes(`${baseName}${index}`)) index += 1;
+  return `${baseName}${index}`;
+}
+
+function escapeXmlAttribute(value: string) {
+  return escapeXml(value).replace(/'/g, "&apos;");
+}
+
+function unescapeXmlAttribute(value: string) {
+  return value
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
 }
 
 function firstWorksheetPath(archive: Record<string, Uint8Array>) {
@@ -280,6 +413,23 @@ export async function readProjectJson(file: File): Promise<Project> {
   return JSON.parse(text) as Project;
 }
 
+export async function readSheetProject(file: File): Promise<Project | null> {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  if (ext !== "xlsx" && ext !== "xls") return null;
+
+  const xlsx = await import("xlsx");
+  const data = await file.arrayBuffer();
+  const workbook = xlsx.read(data);
+  const sheetName = workbook.SheetNames.find((name) => normalizeSheetName(name) === normalizeSheetName(jsonSheetName));
+  if (!sheetName) return null;
+
+  const table = xlsx.utils.sheet_to_json<string[]>(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false });
+  const json = table.flat().join("").trim();
+  if (!json) return null;
+
+  return JSON.parse(json) as Project;
+}
+
 export async function readSheetRows(file: File): Promise<PanelRow[]> {
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (ext === "csv" || ext === "tsv" || ext === "txt") {
@@ -289,9 +439,16 @@ export async function readSheetRows(file: File): Promise<PanelRow[]> {
   const xlsx = await import("xlsx");
   const data = await file.arrayBuffer();
   const workbook = xlsx.read(data);
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  const firstSheetName = workbook.SheetNames.find((name) => normalizeSheetName(name) !== normalizeSheetName(jsonSheetName));
+  if (!firstSheetName) return [];
+
+  const firstSheet = workbook.Sheets[firstSheetName];
   const table = xlsx.utils.sheet_to_json<string[]>(firstSheet, { header: 1, defval: "", raw: false });
   return rowsFromTable(table);
+}
+
+function normalizeSheetName(value: string) {
+  return value.trim().toLowerCase();
 }
 
 export async function exportPagePng(pageEl: HTMLElement, fileName: string) {

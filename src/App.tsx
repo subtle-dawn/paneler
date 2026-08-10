@@ -6,7 +6,6 @@ import {
   ArrowRight,
   ArrowUp,
   Copy,
-  ChevronDown,
   FileSpreadsheet,
   ImageDown,
   Plus,
@@ -17,12 +16,11 @@ import {
 } from "lucide-react";
 import { emotionLabel, faceSizeLabel, shapeLabel, sizeLabel, t } from "./i18n";
 import {
-  downloadJson,
   downloadStoryboardXlsx,
   exportPagePng,
   exportPagesPngZip,
   exportPagesPdf,
-  readProjectJson,
+  readSheetProject,
   readSheetRows,
 } from "./io";
 import { rowsToLayouts } from "./layout";
@@ -64,7 +62,6 @@ export function App() {
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
-  const jsonInputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -109,20 +106,6 @@ export function App() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isSettingsOpen]);
-
-  useEffect(() => {
-    function closeMenusOnOutsideClick(event: PointerEvent) {
-      if (!(event.target instanceof Node)) return;
-      const target = event.target;
-
-      document.querySelectorAll<HTMLDetailsElement>(".header-menu[open]").forEach((menu) => {
-        if (!menu.contains(target)) menu.open = false;
-      });
-    }
-
-    document.addEventListener("pointerdown", closeMenusOnOutsideClick);
-    return () => document.removeEventListener("pointerdown", closeMenusOnOutsideClick);
-  }, []);
 
   function updateProject(next: Partial<Project>) {
     setStatus(t.edited);
@@ -317,6 +300,18 @@ export function App() {
 
   async function importSheet(file?: File) {
     if (!file) return;
+    const importedProject = await readSheetProject(file);
+    if (importedProject) {
+      const importedRows = await readSheetRows(file);
+      const mergedRows = mergeRowsWithProjectRows(importedRows, importedProject);
+      const mergedProject = rowsToProject(importedProject, mergedRows);
+      setProject(mergedProject);
+      setRows(mergedRows.map(normalizeChoiceDefaults).map(normalizeOrder));
+      setActivePage(mergedRows[0]?.pageNumber ?? mergedProject.pages[0]?.pageNumber ?? 1);
+      setStatus(t.sheetLoaded);
+      return;
+    }
+
     const importedRows = await readSheetRows(file);
     const importedTitle = titleFromExcelFileName(file.name);
     if (importedTitle) {
@@ -325,16 +320,6 @@ export function App() {
     setRows(importedRows.map(normalizeChoiceDefaults).map(normalizeOrder));
     setActivePage(importedRows[0]?.pageNumber ?? 1);
     setStatus(t.sheetLoaded);
-  }
-
-  async function importProjectJson(file?: File) {
-    if (!file) return;
-    const importedProject = await readProjectJson(file);
-    const importedRows = projectToRows(importedProject);
-    setProject(importedProject);
-    setRows(importedRows.map(normalizeChoiceDefaults).map(normalizeOrder));
-    setActivePage(importedRows[0]?.pageNumber ?? importedProject.pages[0]?.pageNumber ?? 1);
-    setStatus(t.jsonLoaded);
   }
 
   function formatPageNumber(pageNumber: number) {
@@ -397,52 +382,20 @@ export function App() {
           <button type="button" className="header-button" onClick={() => setIsSettingsOpen(true)}>
             {t.settings}
           </button>
-          <details className="header-menu">
-            <summary>
-              {t.import}
-              <ChevronDown size={15} />
-            </summary>
-            <div className="dropdown-panel">
-              <button type="button" className="button" onClick={() => sheetInputRef.current?.click()}>
-                {t.importSheet}
-              </button>
-              <button type="button" className="button" onClick={() => jsonInputRef.current?.click()}>
-                {t.importJson}
-              </button>
-            </div>
-          </details>
-          <details className="header-menu">
-            <summary>
-              {t.export}
-              <ChevronDown size={15} />
-            </summary>
-            <div className="dropdown-panel">
-              <button type="button" className="button" onClick={() => downloadStoryboardXlsx(rows, project.title)}>
-                {t.exportSheet}
-              </button>
-              <button type="button" className="button" onClick={() => downloadJson(syncedProject)}>
-                {t.exportJson}
-              </button>
-            </div>
-          </details>
+          <button type="button" className="header-button" onClick={() => sheetInputRef.current?.click()}>
+            {t.import}
+          </button>
+          <button type="button" className="header-button" onClick={() => downloadStoryboardXlsx(rows, project.title, syncedProject)}>
+            {t.export}
+          </button>
           <button type="button" className="header-button" onClick={() => setIsDownloadOpen(true)}>
             {t.downloads}
           </button>
         </div>
         <input
-          ref={jsonInputRef}
-          type="file"
-          accept=".json,application/json"
-          hidden
-          onChange={(event) => {
-            importProjectJson(event.target.files?.[0]);
-            event.currentTarget.value = "";
-          }}
-        />
-        <input
           ref={sheetInputRef}
           type="file"
-          accept=".csv,.tsv,.txt,.xlsx,.xls"
+          accept=".xlsx,.xls"
           hidden
           onChange={(event) => {
             importSheet(event.target.files?.[0]);
@@ -1490,6 +1443,31 @@ function roleWarnings(rows: PanelRow[]) {
 
 function normalizeOrder<T extends PanelRow>(row: T, order: number): T {
   return { ...row, order };
+}
+
+function mergeRowsWithProjectRows(importedRows: PanelRow[], sourceProject: Project) {
+  const sourceRowsByPage = new Map<number, PanelRow[]>();
+  projectToRows(sourceProject).forEach((row) => {
+    const pageRows = sourceRowsByPage.get(row.pageNumber) ?? [];
+    pageRows.push(row);
+    sourceRowsByPage.set(row.pageNumber, pageRows);
+  });
+
+  const importedRowIndexByPage = new Map<number, number>();
+  return importedRows.map((row, order) => {
+    const pageIndex = importedRowIndexByPage.get(row.pageNumber) ?? 0;
+    importedRowIndexByPage.set(row.pageNumber, pageIndex + 1);
+    const sourceRow = sourceRowsByPage.get(row.pageNumber)?.[pageIndex];
+
+    return {
+      ...sourceRow,
+      ...row,
+      id: sourceRow?.id ?? row.id,
+      isFrameHidden: sourceRow?.isFrameHidden,
+      bleed: sourceRow?.bleed,
+      order,
+    };
+  });
 }
 
 function normalizeChoiceDefaults<T extends PanelRow>(row: T): T {
