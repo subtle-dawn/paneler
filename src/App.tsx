@@ -23,8 +23,10 @@ import { createDefaultProject, createPanelRow, loadProject, projectToRows, rowsT
 import type { EmotionSize, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
 
 const sizeOptions: Size[] = ["extraSmall", "small", "medium", "large", "extraLarge", "fullPage"];
-const shapeOptions: Shape[] = ["vertical", "square", "horizontal"];
-const emotionOptions = ["none", "small", "medium", "large"] as const;
+const shapeOptions: Shape[] = ["square", "vertical", "horizontal"];
+const emotionOptions = ["small", "medium", "large"] as const;
+const roleOptions = ["ー", "場", "時", "魅", "予"] as const;
+const cameraOptions = ["正", "俯", "煽", "横", "上", "下", "引", "寄"] as const;
 const minRowHeightWeight = 0.25;
 const minColumnWidthWeight = 0.25;
 const horizontalRowHeightWeight = 0.6;
@@ -32,7 +34,9 @@ const gridColumnCount = 6;
 
 export function App() {
   const [project, setProject] = useState<Project>(() => loadProject() ?? createDefaultProject());
-  const [rows, setRows] = useState<PanelRow[]>(() => projectToRows(loadProject() ?? createDefaultProject()));
+  const [rows, setRows] = useState<PanelRow[]>(() =>
+    projectToRows(loadProject() ?? createDefaultProject()).map(normalizeChoiceDefaults),
+  );
   const [activePage, setActivePage] = useState(1);
   const [status, setStatus] = useState(t.saved);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -40,9 +44,11 @@ export function App() {
   const [dragOverPage, setDragOverPage] = useState<number | null>(null);
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const syncedProject = useMemo(() => rowsToProject(project, rows), [project, rows]);
   const layouts = useMemo(
@@ -105,6 +111,14 @@ export function App() {
   function updateRow(id: string, patch: Partial<PanelRow>) {
     setStatus(t.edited);
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)).map(normalizeOrder));
+  }
+
+  function selectRow(id: string, pageNumber: number) {
+    setSelectedRowId(id);
+    setActivePage(pageNumber);
+    window.requestAnimationFrame(() => {
+      rowRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   function duplicateRow(id: string) {
@@ -219,7 +233,7 @@ export function App() {
     if (importedTitle) {
       setProject((current) => ({ ...current, title: importedTitle }));
     }
-    setRows(importedRows.map(normalizeOrder));
+    setRows(importedRows.map(normalizeChoiceDefaults).map(normalizeOrder));
     setActivePage(importedRows[0]?.pageNumber ?? 1);
     setStatus(t.sheetLoaded);
   }
@@ -229,7 +243,7 @@ export function App() {
     const importedProject = await readProjectJson(file);
     const importedRows = projectToRows(importedProject);
     setProject(importedProject);
-    setRows(importedRows.map(normalizeOrder));
+    setRows(importedRows.map(normalizeChoiceDefaults).map(normalizeOrder));
     setActivePage(importedRows[0]?.pageNumber ?? importedProject.pages[0]?.pageNumber ?? 1);
     setStatus(t.jsonLoaded);
   }
@@ -457,8 +471,11 @@ export function App() {
                     {activeRows.map((row, rowIndex) => (
                       <tr
                         key={row.id}
+                        ref={(node) => {
+                          rowRefs.current[row.id] = node;
+                        }}
                         draggable
-                        className={`is-active ${row.id === draggingRowId ? "dragging-row" : ""} ${
+                        className={`is-active ${row.id === selectedRowId ? "selected-row" : ""} ${row.id === draggingRowId ? "dragging-row" : ""} ${
                           row.id === dragOverRowId ? "drag-over-row" : ""
                         }`}
                         onDragStart={(event) => {
@@ -489,15 +506,13 @@ export function App() {
                         <td className="panel-index-cell">{rowIndex + 1}</td>
                         <td>
                           <SelectCell
-                            value={row.emotionSize ?? "none"}
+                            value={row.emotionSize ?? "small"}
                             warning={row.warnings?.emotionSize}
-                            onChange={(value) =>
-                              updateRow(row.id, { emotionSize: value === "none" ? null : (value as NonNullable<EmotionSize>) })
-                            }
+                            onChange={(value) => updateRow(row.id, { emotionSize: value as NonNullable<EmotionSize> })}
                           >
                             {emotionOptions.map((value) => (
                               <option key={value} value={value}>
-                                {value === "none" ? emotionLabel.none : emotionLabel[value]}
+                                {emotionLabel[value]}
                               </option>
                             ))}
                           </SelectCell>
@@ -516,7 +531,11 @@ export function App() {
                           </SelectCell>
                         </td>
                         <td>
-                          <input value={row.role} onChange={(event) => updateRow(row.id, { role: event.target.value })} />
+                          <input
+                            list="role-options"
+                            value={row.role}
+                            onChange={(event) => updateRow(row.id, { role: event.target.value })}
+                          />
                         </td>
                         <td>
                           <SelectCell
@@ -532,10 +551,16 @@ export function App() {
                           </SelectCell>
                         </td>
                         <td>
-                          <input
-                            value={row.camera}
-                            onChange={(event) => updateRow(row.id, { camera: event.target.value })}
-                          />
+                          <SelectCell
+                            value={cameraOptions.includes(row.camera as (typeof cameraOptions)[number]) ? row.camera : cameraOptions[0]}
+                            onChange={(value) => updateRow(row.id, { camera: value })}
+                          >
+                            {cameraOptions.map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </SelectCell>
                         </td>
                         <td>
                           <textarea
@@ -576,6 +601,8 @@ export function App() {
                 layout={activeLayout}
                 rowHeights={project.rowHeights?.[activeLayout.pageNumber]}
                 rowWidths={project.rowWidths?.[activeLayout.pageNumber]}
+                selectedPanelId={selectedRowId}
+                onPanelSelect={selectRow}
                 onRowResize={(nextHeights) => updateRowHeights(activeLayout.pageNumber, nextHeights)}
                 onColumnResize={(rowIndex, nextWidths) => updateRowWidths(activeLayout.pageNumber, rowIndex, nextWidths)}
                 register={(node) => {
@@ -599,6 +626,11 @@ export function App() {
           />
         ))}
       </div>
+      <datalist id="role-options">
+        {roleOptions.map((value) => (
+          <option key={value} value={value} />
+        ))}
+      </datalist>
     </main>
   );
 }
@@ -607,6 +639,8 @@ function PagePreview({
   layout,
   rowHeights,
   rowWidths,
+  selectedPanelId,
+  onPanelSelect,
   onRowResize,
   onColumnResize,
   register,
@@ -614,6 +648,8 @@ function PagePreview({
   layout: ReturnType<typeof rowsToLayouts>[number];
   rowHeights?: number[];
   rowWidths?: number[][];
+  selectedPanelId: string | null;
+  onPanelSelect: (id: string, pageNumber: number) => void;
   onRowResize: (nextHeights: number[]) => void;
   onColumnResize: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
@@ -624,6 +660,8 @@ function PagePreview({
         layout={layout}
         rowHeights={rowHeights}
         rowWidths={rowWidths}
+        selectedPanelId={selectedPanelId}
+        onPanelSelect={onPanelSelect}
         onRowResize={onRowResize}
         onColumnResize={onColumnResize}
         register={register}
@@ -636,6 +674,8 @@ function PageCanvas({
   layout,
   rowHeights,
   rowWidths,
+  selectedPanelId,
+  onPanelSelect,
   onRowResize,
   onColumnResize,
   register,
@@ -643,6 +683,8 @@ function PageCanvas({
   layout: ReturnType<typeof rowsToLayouts>[number];
   rowHeights?: number[];
   rowWidths?: number[][];
+  selectedPanelId?: string | null;
+  onPanelSelect?: (id: string, pageNumber: number) => void;
   onRowResize?: (nextHeights: number[]) => void;
   onColumnResize?: (rowIndex: number, nextWidths: number[]) => void;
   register: (node: HTMLDivElement | null) => void;
@@ -750,8 +792,9 @@ function PageCanvas({
           {row.panels.map((panel) => (
             <article
               key={panel.id}
-              className={`panel-frame ${panel.shape}`}
+              className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""}`}
               style={{ gridColumn: `${panel.colStart} / span ${panel.colSpan}`, gridRow: 1 }}
+              onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
             >
               <div className="panel-number" data-export-text>
                 {panel.visualNumber}
@@ -775,7 +818,11 @@ function PageCanvas({
                 style={{ gridColumn: `${stack.colStart} / span ${stack.colSpan}`, gridRow: 1 }}
               >
                 {stack.panels.map((panel) => (
-                  <article key={panel.id} className={`panel-frame ${panel.shape}`}>
+                  <article
+                    key={panel.id}
+                    className={`panel-frame ${panel.shape} ${panel.id === selectedPanelId ? "selected-panel" : ""}`}
+                    onClick={() => onPanelSelect?.(panel.id, panel.pageNumber)}
+                  >
                     <div className="panel-number" data-export-text>
                       {panel.visualNumber}
                     </div>
@@ -887,6 +934,14 @@ function SelectCell({
 
 function normalizeOrder<T extends PanelRow>(row: T, order: number): T {
   return { ...row, order };
+}
+
+function normalizeChoiceDefaults<T extends PanelRow>(row: T): T {
+  return {
+    ...row,
+    emotionSize: row.emotionSize ?? "small",
+    camera: row.camera || cameraOptions[0],
+  };
 }
 
 function normalizeRowHeights(rowHeights: number[] | undefined, rows: LayoutRow[]) {

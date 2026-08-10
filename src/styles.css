@@ -504,6 +504,11 @@ h2 {
   vertical-align: middle;
 }
 
+.storyboard-table tr.selected-row td {
+  background: #dbe7e6;
+  box-shadow: inset 0 0 0 1px #6d8f8d;
+}
+
 .panel-index-cell {
   color: #403b34;
   font-weight: 800;
@@ -723,12 +728,19 @@ h2 {
 .panel-frame {
   background: #fffdfa;
   border: 2px solid #181611;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-height: 0;
   overflow: hidden;
   padding: 9px;
+}
+
+.panel-frame.selected-panel {
+  background: #edf5f2;
+  border-color: #1f3e55;
+  box-shadow: inset 0 0 0 2px #1f3e55;
 }
 
 .panel-stack {

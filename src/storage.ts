@@ -26,11 +26,11 @@ export function createPanelRow(pageNumber = 1, order = 0): PanelRow {
   return {
     id: createId("panel"),
     pageNumber,
-    emotionSize: null,
+    emotionSize: "small",
     panelSize: "small",
-    role: "",
+    role: "ー",
     shape: "vertical",
-    camera: "",
+    camera: "正",
     content: "",
     order,
   };

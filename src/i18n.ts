@@ -22,7 +22,7 @@ export const t = {
   large: "大",
   none: "なし",
   vertical: "縦",
-  square: "正方形",
+  square: "正",
   horizontal: "横",
   settings: "漫画の設定",
   close: "閉じる",

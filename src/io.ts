@@ -11,6 +11,7 @@ const headerMap: Record<string, keyof PanelRow | "content"> = {
   ページ: "pageNumber",
   pagenumber: "pageNumber",
   emotion: "emotionSize",
+  emotionsize: "emotionSize",
   感情: "emotionSize",
   size: "panelSize",
   panelsize: "panelSize",
@@ -455,7 +456,7 @@ function parseSize(value: string): { value: Size; warning?: string } {
   if (["小", "small", "s"].includes(normalized)) return { value: "small" };
   if (["中", "medium", "m"].includes(normalized)) return { value: "medium" };
   if (["大", "large", "l"].includes(normalized)) return { value: "large" };
-  if (["特大", "extra large", "extralarge", "xl"].includes(normalized)) return { value: "extraLarge" };
+  if (["極大", "特大", "extra large", "extralarge", "xl"].includes(normalized)) return { value: "extraLarge" };
   if (["1ページ", "１ページ", "1page", "full page", "fullpage"].includes(normalized)) return { value: "fullPage" };
   return { value: "small", warning: "極小・小・中・大・特大・1ページから選んでください" };
 }
@@ -472,7 +473,7 @@ function parseEmotion(value: string): { value: EmotionSize; warning?: string } {
 function parseShape(value: string): { value: Shape; warning?: string } {
   const normalized = value.trim().toLowerCase();
   if (["縦", "vertical", "v"].includes(normalized)) return { value: "vertical" };
-  if (["正", "square", "s"].includes(normalized)) return { value: "square" };
+  if (["正", "正方形", "square", "s"].includes(normalized)) return { value: "square" };
   if (["横", "horizontal", "h"].includes(normalized)) return { value: "horizontal" };
   return { value: "vertical", warning: "縦・正・横から選んでください" };
 }
