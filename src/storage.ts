@@ -4,11 +4,23 @@ import type { PanelRow, Project } from "./types";
 const STORAGE_KEY = "paneler.project.v1";
 
 export function saveProject(project: Project) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+  } catch (error) {
+    console.warn("Project could not be saved to localStorage", error);
+  }
 }
 
 export function loadProject(): Project | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  let raw: string | null = null;
+
+  try {
+    raw = localStorage.getItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn("Project could not be loaded from localStorage", error);
+    return null;
+  }
+
   if (!raw) return null;
 
   try {
