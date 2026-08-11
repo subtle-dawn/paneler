@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  ChevronDown,
   Copy,
   FileSpreadsheet,
   ImageDown,
@@ -903,12 +904,7 @@ export function App() {
                           </SelectCell>
                         </td>
                         <td>
-                          <input
-                            className={excelToneClass(roleTone(row.role))}
-                            list="role-options"
-                            value={row.role}
-                            onChange={(event) => updateRow(row.id, { role: event.target.value })}
-                          />
+                          <RoleDropdownCell value={row.role} onChange={(value) => updateRow(row.id, { role: value })} />
                         </td>
                         <td>
                           <SelectCell
@@ -1081,11 +1077,6 @@ export function App() {
           />
         ))}
       </div>
-      <datalist id="role-options">
-        {roleOptions.map((value) => (
-          <option key={value} value={value} className={excelToneClass(roleTone(value))} />
-        ))}
-      </datalist>
     </main>
   );
 }
@@ -1521,6 +1512,61 @@ function SelectCell({
       </select>
       {warning && <span>{warning}</span>}
     </label>
+  );
+}
+
+function RoleDropdownCell({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function closeOnOutsidePointer(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
+    }
+
+    window.addEventListener("mousedown", closeOnOutsidePointer);
+    return () => window.removeEventListener("mousedown", closeOnOutsidePointer);
+  }, [isOpen]);
+
+  return (
+    <div className="role-dropdown" ref={rootRef}>
+      <input
+        className={excelToneClass(roleTone(value))}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setIsOpen(true)}
+      />
+      <button
+        type="button"
+        className="role-dropdown-button"
+        aria-label={t.role}
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <ChevronDown size={14} />
+      </button>
+      {isOpen && (
+        <div className="role-dropdown-menu" role="listbox">
+          {roleOptions.map((option) => (
+            <button
+              type="button"
+              className={`role-dropdown-option ${excelToneClass(roleTone(option))}`}
+              key={option}
+              role="option"
+              aria-selected={value === option}
+              onClick={() => {
+                onChange(option);
+                setIsOpen(false);
+              }}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
