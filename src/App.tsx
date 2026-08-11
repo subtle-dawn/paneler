@@ -49,6 +49,7 @@ const sizeTone: Partial<Record<Size, ExcelTone>> = {
   medium: "yellow",
   large: "red",
   extraLarge: "red",
+  fullPage: "red",
 };
 
 const emotionTone: Partial<Record<NonNullable<EmotionSize>, ExcelTone>> = {
