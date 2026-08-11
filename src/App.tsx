@@ -615,6 +615,8 @@ export function App() {
               {t.pageHelpLine1}
               <br />
               {t.pageHelpLine2}
+              <br />
+              {t.pageHelpLine3}
             </p>
           </section>
         </div>
@@ -648,6 +650,8 @@ export function App() {
               {t.storyboardHelpLine3}
               <br />
               {t.storyboardHelpLine4}
+              <br />
+              {t.storyboardHelpLine5}
             </p>
           </section>
         </div>
