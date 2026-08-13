@@ -102,7 +102,7 @@ export const t = {
 };
 
 export const roleOptionLabels = ["ー", "場", "時", "魅", "予"] as const;
-export const cameraOptionLabels = ["正", "俯", "煽", "横", "上", "下"] as const;
+export const cameraOptionLabels = ["正", "横", "上", "下", "俯", "煽"] as const;
 
 export const sizeLabel = {
   extraSmall: "極小",

@@ -82,13 +82,13 @@ const faceSizeTone: Partial<Record<FaceSize, ExcelTone>> = {
   extraLarge: "red",
 };
 
-const cameraToneByIndex: Partial<Record<number, ExcelTone>> = {
-  0: "green",
-  1: "red",
-  2: "red",
-  3: "yellow",
-  4: "yellow",
-  5: "yellow",
+const cameraToneByLabel: Partial<Record<(typeof cameraOptionLabels)[number], ExcelTone>> = {
+  正: "green",
+  横: "yellow",
+  上: "yellow",
+  下: "yellow",
+  俯: "red",
+  煽: "red",
 };
 
 export function App() {
@@ -119,7 +119,6 @@ export function App() {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const syncedProject = useMemo(() => rowsToProject(project, rows), [project, rows]);
   const layouts = useMemo(() => {
@@ -251,11 +250,6 @@ export function App() {
     const shouldSelect = selectedRowId !== id;
     setSelectedRowId(shouldSelect ? id : null);
     setActivePage(pageNumber);
-    if (shouldSelect) {
-      window.requestAnimationFrame(() => {
-        rowRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    }
   }
 
   function togglePanelFrame(id: string) {
@@ -934,9 +928,6 @@ export function App() {
                     {activeRows.map((row, rowIndex) => (
                       <tr
                         key={row.id}
-                        ref={(node) => {
-                          rowRefs.current[row.id] = node;
-                        }}
                         draggable
                         className={`is-active ${row.id === selectedRowId ? "selected-row" : ""} ${row.id === draggingRowId ? "dragging-row" : ""} ${
                           row.id === dragOverRowId ? "drag-over-row" : ""
@@ -965,6 +956,7 @@ export function App() {
                           setDraggingRowId(null);
                           setDragOverRowId(null);
                         }}
+                        onClick={() => selectRow(row.id, row.pageNumber)}
                       >
                         <td className="panel-index-cell">{rowIndex + 1}</td>
                         <td>
@@ -1018,8 +1010,8 @@ export function App() {
                             tone={cameraTone(row.camera)}
                             onChange={(value) => updateRow(row.id, { camera: value })}
                           >
-                            {cameraOptions.map((value, index) => (
-                              <option key={value} value={value} className={excelToneClass(cameraToneByIndex[index])}>
+                            {cameraOptions.map((value) => (
+                              <option key={value} value={value} className={excelToneClass(cameraTone(value))}>
                                 {value}
                               </option>
                             ))}
@@ -1047,7 +1039,7 @@ export function App() {
                           />
                         </td>
                         <td>
-                          <div className="row-actions">
+                          <div className="row-actions" onClick={(event) => event.stopPropagation()}>
                             <button type="button" title={t.duplicateRow} onClick={() => duplicateRow(row.id)}>
                               <Copy size={15} />
                             </button>
@@ -1670,8 +1662,9 @@ function excelToneClass(tone?: ExcelTone) {
 }
 
 function cameraTone(value: string) {
-  const index = cameraOptions.findIndex((option) => option === value);
-  return index >= 0 ? cameraToneByIndex[index] : undefined;
+  return cameraOptions.includes(value as (typeof cameraOptionLabels)[number])
+    ? cameraToneByLabel[value as (typeof cameraOptionLabels)[number]]
+    : undefined;
 }
 
 function roleTone(value: string): ExcelTone | undefined {
