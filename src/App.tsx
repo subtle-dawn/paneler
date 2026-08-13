@@ -25,7 +25,16 @@ import {
   readSheetRows,
 } from "./io";
 import { rowsToLayouts } from "./layout";
-import { createDefaultProject, createPanelRow, loadProject, normalizeProject, projectToRows, rowsToProject, saveProject } from "./storage";
+import {
+  createDefaultProject,
+  createEmptyProject,
+  createPanelRow,
+  loadProject,
+  normalizeProject,
+  projectToRows,
+  rowsToProject,
+  saveProject,
+} from "./storage";
 import type { BleedSide, EmotionSize, FaceSize, LayoutPanel, LayoutRow, PanelRow, Project, Shape, Size } from "./types";
 
 const sizeOptions: Size[] = ["extraSmall", "small", "medium", "large", "extraLarge", "fullPage"];
@@ -90,6 +99,7 @@ export function App() {
   const [activePage, setActivePage] = useState(1);
   const [status, setStatus] = useState(t.saved);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNewProjectConfirmOpen, setIsNewProjectConfirmOpen] = useState(false);
   const [isAppHelpOpen, setIsAppHelpOpen] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("png");
@@ -112,10 +122,18 @@ export function App() {
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const syncedProject = useMemo(() => rowsToProject(project, rows), [project, rows]);
-  const layouts = useMemo(
-    () => rowsToLayouts(projectToRows(syncedProject), syncedProject.readingDirection),
-    [syncedProject],
-  );
+  const layouts = useMemo(() => {
+    const generatedLayouts = rowsToLayouts(projectToRows(syncedProject), syncedProject.readingDirection);
+    return syncedProject.pages
+      .map(
+        (page) =>
+          generatedLayouts.find((layout) => layout.pageNumber === page.pageNumber) ?? {
+            pageNumber: page.pageNumber,
+            rows: [],
+          },
+      )
+      .sort((a, b) => a.pageNumber - b.pageNumber);
+  }, [syncedProject]);
   const activeLayout = layouts.find((layout) => layout.pageNumber === activePage) ?? layouts[0];
   const activeRows = useMemo(
     () => rows.filter((row) => row.pageNumber === activePage).sort((a, b) => a.order - b.order),
@@ -145,16 +163,42 @@ export function App() {
     if (!isSettingsOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsSettingsOpen(false);
+      if (event.key === "Escape" && !isNewProjectConfirmOpen) setIsSettingsOpen(false);
     }
 
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isSettingsOpen]);
+  }, [isNewProjectConfirmOpen, isSettingsOpen]);
+
+  useEffect(() => {
+    if (!isNewProjectConfirmOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsNewProjectConfirmOpen(false);
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isNewProjectConfirmOpen]);
 
   function updateProject(next: Partial<Project>) {
     setStatus(t.edited);
     setProject((current) => ({ ...current, ...next }));
+  }
+
+  function createNewProject() {
+    const nextProject = createEmptyProject();
+    setStatus(t.edited);
+    setProject(nextProject);
+    setRows([]);
+    setActivePage(1);
+    setSelectedRowId(null);
+    setDraggingPage(null);
+    setDragOverPage(null);
+    setDraggingRowId(null);
+    setDragOverRowId(null);
+    setIsNewProjectConfirmOpen(false);
+    setIsSettingsOpen(false);
   }
 
   function updateRowHeights(pageNumber: number, nextHeights: number[]) {
@@ -592,6 +636,54 @@ export function App() {
                   {t.readingLeftToRight}
                 </button>
               </div>
+            </div>
+            <div className="settings-actions">
+              <button
+                type="button"
+                className="button danger"
+                onClick={() => setIsNewProjectConfirmOpen(true)}
+              >
+                {t.createNewProject}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isNewProjectConfirmOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsNewProjectConfirmOpen(false)}>
+          <section
+            className="settings-modal confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-project-confirm-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <h2 id="new-project-confirm-title">{t.createNewProject}</h2>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setIsNewProjectConfirmOpen(false)}
+                title={t.close}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="confirm-text">
+              {t.newProjectConfirmLine1}
+              <br />
+              {t.newProjectConfirmLine2}
+              <br />
+              {t.newProjectConfirmLine3}
+            </p>
+            <div className="confirm-actions">
+              <button type="button" className="button" onClick={() => setIsNewProjectConfirmOpen(false)}>
+                {t.no}
+              </button>
+              <button type="button" className="button primary" onClick={createNewProject}>
+                {t.yes}
+              </button>
             </div>
           </section>
         </div>

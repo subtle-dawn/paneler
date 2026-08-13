@@ -187,6 +187,23 @@ button {
   width: 100%;
 }
 
+.settings-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
+.confirm-text {
+  line-height: 1.7;
+  margin: 0;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .download-options {
   border: 1px solid #c9beb0;
   border-radius: 8px;
@@ -302,6 +319,17 @@ button {
   background: #1f3e55;
   border-color: #1f3e55;
   color: #fffdfa;
+}
+
+.button.danger {
+  background: #b7352d;
+  border-color: #b7352d;
+  color: #fffdfa;
+}
+
+.button.danger:hover {
+  background: #972a24;
+  border-color: #972a24;
 }
 
 .save-status {

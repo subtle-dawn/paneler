@@ -107,6 +107,22 @@ export function createDefaultProject(): Project {
   };
 }
 
+export function createEmptyProject(): Project {
+  return {
+    id: createId("project"),
+    title: t.defaultProjectTitle,
+    note: "",
+    readingDirection: "rtl",
+    pages: [
+      {
+        id: createId("page"),
+        pageNumber: 1,
+        panels: [],
+      },
+    ],
+  };
+}
+
 export function projectToRows(project: Project): PanelRow[] {
   return project.pages
     .flatMap((page) =>
@@ -120,7 +136,9 @@ export function projectToRows(project: Project): PanelRow[] {
 }
 
 export function rowsToProject(project: Project, rows: PanelRow[]): Project {
-  const pageNumbers = Array.from(new Set(rows.map((row) => row.pageNumber))).sort((a, b) => a - b);
+  const pageNumbers = Array.from(
+    new Set(rows.length > 0 ? rows.map((row) => row.pageNumber) : project.pages.map((page) => page.pageNumber)),
+  ).sort((a, b) => a - b);
 
   return {
     ...project,
