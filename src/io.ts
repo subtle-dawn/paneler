@@ -550,6 +550,7 @@ function renderPageToCanvas(pageEl: HTMLElement) {
   });
 
   drawPageSideMark(ctx, pageEl, 0, 0, canvas.width / scaleX, canvas.height / scaleY);
+  drawHiddenPageNumber(ctx, pageEl, 0, 0, canvas.width / scaleX, canvas.height / scaleY);
 
   return canvas;
 }
@@ -755,6 +756,30 @@ function drawPageSideMark(
   ctx.moveTo(centerX + radius, centerY - radius);
   ctx.lineTo(centerX - radius, centerY + radius);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawHiddenPageNumber(
+  ctx: CanvasRenderingContext2D,
+  pageEl: HTMLElement,
+  offsetX: number,
+  offsetY: number,
+  width: number,
+  height: number,
+) {
+  const pageNumber = pageEl.dataset.pageNumber?.trim();
+  if (!pageNumber) return;
+
+  const isRight = pageEl.classList.contains("side-mark-right");
+  const x = offsetX + (isRight ? width - 20 : 20);
+  const y = offsetY + height - 20;
+
+  ctx.save();
+  ctx.fillStyle = "#625c52";
+  ctx.font = "bold 11px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(pageNumber, x, y);
   ctx.restore();
 }
 

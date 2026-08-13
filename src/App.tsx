@@ -1242,10 +1242,13 @@ function PageCanvas({
   }
 
   return (
-    <div className={`manga-page side-mark-${sideMarkPosition}`} ref={setPageNode}>
+    <div className={`manga-page side-mark-${sideMarkPosition}`} data-page-number={layout.pageNumber} ref={setPageNode}>
       <div className="page-side-mark" aria-hidden="true">
         <span />
         <span />
+      </div>
+      <div className="hidden-page-number" aria-hidden="true">
+        {layout.pageNumber}
       </div>
       {layout.rows.map((row, rowIndex) => (
         <div className="layout-row-group" key={rowIndex}>
